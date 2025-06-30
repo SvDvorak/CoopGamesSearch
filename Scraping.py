@@ -91,6 +91,11 @@ def find_best_coop_games():
 		games.extend(fetch_coop_games(i))
 	print(f"\nFound {len(games)} games")
 	
+	# Remove duplicates based on steam_id
+	seen_steam_ids = set()
+	games = list(filter(lambda game: game.steam_id not in seen_steam_ids and not seen_steam_ids.add(game.steam_id), games))
+	print(f"\nAfter deduplication: {len(games)} unique games")
+	
 	print("\nFinding Steam metadata, prices & ratings (skipping delisted)")
 	count = len(games)
 	i = 1
