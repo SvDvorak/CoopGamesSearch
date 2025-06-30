@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Co-op Games List</title>
+	<link rel="icon" type="image/svg+xml" href="Logo.svg">
+	<script src="https://unpkg.com/vue@3"></script>
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			margin: 20px;
+			background-color: #f4f4f4;
+		}
+		.rounded-box {
+			background-color: #fff;
+			border: 1px solid #ddd;
+			box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+			max-width: 720px;
+			margin-bottom: 20px;
+			border-radius: 8px;
+			padding: 16px;
+		}
+		.game img {
+			width: 460px;
+			height: auto;
+			border-radius: 4px;
+		}
+		.game h2 {
+			margin-top: 10px;
+			margin-bottom: 8px;
+		}
+		.links a {
+			margin-right: 10px;
+		}
+		.tags {
+			margin-top: 12px;
+		}
+		.tag {
+			display: inline-block;
+			background-color: #e0e0e0;
+			color: #333;
+			padding: 4px 8px;
+			margin: 2px 4px 0 0;
+			border-radius: 12px;
+			font-size: 0.85em;
+		}
+		.controls {
+			gap: 40px;
+		}
+		.controls h3 {
+			margin-top: 0;
+		}
+		.filter-row {
+			margin-bottom: 15px;
+		}
+		.filter-row h4 {
+			margin: 0 0 5px 0;
+			font-size: 14px;
+			font-weight: bold;
+		}
+		.filter-inputs {
+			display: flex;
+			align-items: center;
+			gap: 10px;
+		}
+		.filter-input {
+			padding: 4px 6px;
+			border: 1px solid #ddd;
+			border-radius: 4px;
+		}
+		.filter-inputs input {
+			width: 120px;
+		}
+		.filter-inputs input[type="range"] {
+			width: 200px;
+		}
+		.filter-inputs label {
+			min-width: 140px;
+			font-size: 14px;
+		}
+		.checkbox-group {
+			display: flex;
+			flex-direction: column;
+			gap: 10px;
+		}
+		.checkbox-group label {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			cursor: pointer;
+		}
+		.loading {
+			text-align: center;
+			padding: 20px;
+		}
+		.error {
+			background-color: #fee;
+			border: 1px solid #fcc;
+			border-radius: 8px;
+			padding: 15px;
+			margin-bottom: 20px;
+			color: #c33;
+			text-align: center;
+		}
+	</style>
+</head>
+<body>
+	<h1>Co-op Game Results</h1>
+
+	<div id="app">
+		<!-- Filter Controls -->
+		<div class="controls">
+			<div class="rounded-box filters">
+				<h3>Filters</h3>
+				
+				<!-- Player count row -->
+				<div class="filter-row">
+					<h4>Players</h4>
+					<div class="filter-inputs">
+						<input class="filter-input" type="number" v-model.number="filters.min_supported_players" @input="fetchGames" min="1" max="100">
+						<span class="filter-to-label">to</span>
+						<input class="filter-input" type="number" v-model.number="filters.max_supported_players" @input="fetchGames" min="1" max="100">
+					</div>
+				</div>
+
+				<!-- Date range row -->
+				<div class="filter-row">
+					<h4>Release Date</h4>
+					<div class="filter-inputs">
+						<input class="filter-input" type="date" v-model="filters.release_date_from" @change="fetchGames">
+						<span>to</span>
+						<input class="filter-input" type="date" v-model="filters.release_date_to" @change="fetchGames">
+					</div>
+				</div>
+
+				<!-- Checkboxes -->
+				<div class="checkbox-group">
+					<label>
+						<input type="checkbox" v-model="filters.free_games" @change="fetchGames">
+						Include Free Games
+					</label>
+					<label>
+						<input type="checkbox" v-model="filters.unreleased_games" @change="fetchGames">
+						Include Unreleased Games
+					</label>
+				</div>
+			</div>
+
+			<div class="rounded-box controls scoring">
+				<h3>Scoring</h3>
+				<!-- Scoring weights row -->
+				<div class="filter-row">
+					<h4>Scoring Weights</h4>
+					<div class="filter-inputs">
+						<label>Rating Weight: {{ filters.weight_rating.toFixed(2) }}</label>
+						<input class="filter-input" type="range" v-model.number="filters.weight_rating" @input="updateWeights('rating')" min="0" max="1" step="0.01">
+					</div>
+					<div class="filter-inputs" style="margin-top: 8px;">
+						<label>Price Weight: {{ filters.weight_price.toFixed(2) }}</label>
+						<input class="filter-input" type="range" v-model.number="filters.weight_price" @input="updateWeights('price')" min="0" max="1" step="0.01">
+					</div>
+				</div>
+
+				<!-- Expensive game threshold row -->
+				<div class="filter-row">
+					<h4>Expensive Game Threshold</h4>
+					<div class="filter-inputs">
+						<input class="filter-input" type="number" v-model.number="filters.high_price" @input="fetchGames" min="0" step="0.01" placeholder="Price in €">
+						<span>€</span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Loading indicator -->
+		<div v-if="loading" class="loading">
+			Loading games...
+		</div>
+
+		<!-- Error message -->
+		<div v-if="error" class="error">
+			{{ error }}
+		</div>
+
+		<!-- Games list -->
+		<div class="rounded-box game" v-for="(g, index) in games" :key="`game-${g.steam_id || index}`">
+			<img :src="g.header_image" :alt="'Header for ' + g.title">
+			<h2>{{ g.title }}</h2>
+			<p>
+				<strong>Score:</strong> {{ g.score.toFixed(3) }}<br>
+				<strong>Price:</strong> {{ g.price > 0 ? (g.price / 100).toFixed(2) + '€' : 'Free' }}<br>
+				<strong>Steam Rating:</strong> {{ g.steam_rating > 0 ? (g.steam_rating * 100).toFixed(1) + '%' : 'N/A' }}
+				({{ g.number_of_reviews }} reviews)<br>
+				<strong>Release Date:</strong> {{ g.is_released ? formatDate(g.release_date) : 'Coming soon' }}<br>
+				<strong>Online Players:</strong> {{ g.online_players }}
+			</p>
+			<p>{{ g.short_description }}</p>
+			<div class="links">
+				<a :href="g.steam_url" target="_blank">Steam Page</a>
+				<a :href="g.cooptimus_url" target="_blank">Co-Optimus Page</a>
+			</div>
+			<div class="tags">
+				<span class="tag" v-for="(tag, tagIndex) in g.tags" :key="`${g.steam_id}-tag-${tagIndex}`">{{ tag }}</span>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		Vue.createApp({
+			data() {
+				const today = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
+				const earliestDate = '1988-08-20';
+				
+				return { 
+					games: [],
+					loading: false,
+					error: null,
+					filters: {
+						min_supported_players: 1,
+						max_supported_players: 100,
+						free_games: true,
+						unreleased_games: true,
+						release_date_from: earliestDate,
+						release_date_to: today,
+						weight_rating: 0.7,
+						weight_price: 0.3,
+						high_price: 20.0,
+					},
+				};
+			},
+			mounted() {
+				this.fetchGames();
+			},
+			methods: {
+				async fetchGames() {
+					this.loading = true;
+					this.error = null; // Clear previous errors
+					try {
+						const params = new URLSearchParams(this.filters);
+						const response = await fetch(`/games?${params}`);
+						
+						if (!response.ok) {
+							// Handle HTTP error responses
+							const errorData = await response.json();
+							throw new Error(errorData.detail || `Server error: ${response.status}`);
+						}
+						
+						const data = await response.json();
+						this.games = data.games;
+					} catch (error) {
+						console.error('Error fetching games:', error);
+						this.error = error.message || 'Failed to load games. Please try again.';
+						this.games = []; // Clear games on error
+					} finally {
+						this.loading = false;
+					}
+				},
+				updateWeights(type) {
+					// Ensure weights always sum to 1
+					if (type === 'rating') {
+						this.filters.weight_rating = parseFloat(this.filters.weight_rating);
+						this.filters.weight_price = 1 - this.filters.weight_rating;
+					} else if (type === 'price') {
+						this.filters.weight_price = parseFloat(this.filters.weight_price);
+						this.filters.weight_rating = 1 - this.filters.weight_price;
+					}
+					this.fetchGames();
+				},
+				formatDate(dateStr) {
+					const options = { year: 'numeric', month: 'short', day: '2-digit' };
+					return new Date(dateStr).toLocaleDateString(undefined, options);
+				}
+			}
+		}).mount('#app');
+	</script>
+</body>
+</html>

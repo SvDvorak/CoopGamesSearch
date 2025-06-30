@@ -1,0 +1,102 @@
+from typing import Optional
+from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
+from Game import Game
+import json
+from datetime import datetime, date
+
+app = FastAPI()
+
+# Enable CORS for frontend-backend communication
+app.add_middleware(
+	CORSMiddleware,
+	allow_origins=["*"],  # In production, specify your frontend domain
+	allow_credentials=True,
+	allow_methods=["*"],
+	allow_headers=["*"],
+)
+
+games_file = "games.json"
+games = [Game]
+
+# Serve static files (HTML, CSS, JS)
+app.mount("/static", StaticFiles(directory="."), name="static")
+
+with open(games_file, "r", encoding="utf-8") as f:
+	data = json.load(f)
+print(f"\nLoaded {len(data)} games from {games_file}")
+games = [Game.from_dict(item) for item in data]
+games.sort(key=lambda x: x.score, reverse=True)
+
+def is_within_date_range(game, from_date, to_date):
+	if not game.release_date:
+		return False
+
+	if from_date and game.release_date < from_date:
+		return False
+	
+	if to_date and game.release_date > to_date:
+		return False
+	
+	return True
+
+def validate_date_string(date_str, param_name):
+	try:
+		return datetime.strptime(date_str, "%Y-%m-%d").date()
+	except ValueError:
+		raise HTTPException(
+			status_code=400, 
+			detail=f"Invalid date format for {param_name}. Expected format: YYYY-MM-DD"
+		)
+
+@app.get("/games")
+async def get_games(min_supported_players: Optional[int] = 1, 
+				   max_supported_players: Optional[int] = 100,
+				   free_games: Optional[bool] = True,
+				   unreleased_games: Optional[bool] = True,
+				   release_date_from: Optional[str] = '1988-08-20',
+				   release_date_to: Optional[str] = date.today().strftime("%Y-%m-%d"),
+				   weight_rating: Optional[float] = 0.7,	# How much game the rating is taken into account
+				   weight_price: Optional[float] = 0.3,		# How much price is taken into account
+				   high_price: Optional[float] = 20):		# What an "expensive" game classifies as
+	
+	from_date = validate_date_string(release_date_from, "release_date_from")
+	to_date = validate_date_string(release_date_to, "release_date_to")
+	
+	# Check if from_date is after to_date
+	if from_date and to_date and from_date > to_date:
+		raise HTTPException(
+			status_code=400,
+			detail="release_date_from cannot be later than release_date_to"
+		)
+	
+	filtered_games = [game for game in games if
+					  (game.online_players >= min_supported_players and
+					   game.online_players <= max_supported_players and
+					   (free_games or game.price > 0) and
+					   (unreleased_games or game.is_released) and
+					   is_within_date_range(game, from_date, to_date))]
+
+	for game in filtered_games:
+		game.compute_score(weight_rating, weight_price, high_price)
+	
+	# Sort by score (highest first)
+	filtered_games.sort(key=lambda x: x.score, reverse=True)
+	
+	return {
+		"games": [game.to_dict() for game in filtered_games],
+	}
+
+@app.get("/countries.json")
+async def serve_countries():
+	return FileResponse("Countries.json")
+
+@app.get("/Logo.svg")
+async def serve_countries():
+	return FileResponse("Logo.svg")
+
+@app.get("/")
+async def serve_frontend():
+	return FileResponse("FilterPage.html")
