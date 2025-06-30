@@ -5,6 +5,10 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 
+min_supported_players = 6
+max_supported_players = 8
+country_code = "SE"
+
 # Fetch games with x number of online co‑op players via Co‑Optimus
 def fetch_coop_games(players):
 	url = "https://api.co-optimus.com/games.php"
@@ -113,8 +117,3 @@ def find_best_coop_games():
 	games = list(filter(lambda x: not x.is_delisted, games))
 
 	return games
-
-def save_games_to_file(games):
-	with open(games_file, "w", encoding="utf-8") as f:
-		json.dump([g.to_dict() for g in games], f, ensure_ascii=False, indent=2)
-	print(f"\nSaved {len(games)} games to {games_file}")

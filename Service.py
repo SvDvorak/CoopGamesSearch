@@ -4,8 +4,9 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from Game import Game
-import json
 from datetime import datetime, date
+from GameStorage import load_games_from_file
+from Scraper import Scraper
 
 app = FastAPI()
 
@@ -19,16 +20,17 @@ app.add_middleware(
 )
 
 games_file = "games.json"
-games = [Game]
+
+# Initialize scraper
+scraper = Scraper(games_file, scrape_interval_hours=4)
 
 # Serve static files (HTML, CSS, JS)
 app.mount("/static", StaticFiles(directory="."), name="static")
 
-with open(games_file, "r", encoding="utf-8") as f:
-	data = json.load(f)
-print(f"\nLoaded {len(data)} games from {games_file}")
-games = [Game.from_dict(item) for item in data]
-games.sort(key=lambda x: x.score, reverse=True)
+# Load games on startup and start continuous scraping
+initial_games = load_games_from_file(games_file)
+scraper.load_initial_games(initial_games)
+scraper.start_continuous_scraping()
 
 def is_within_date_range(game, from_date, to_date):
 	if not game.release_date:
@@ -72,6 +74,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 			detail="release_date_from cannot be later than release_date_to"
 		)
 	
+	games = scraper.get_games()
 	filtered_games = [game for game in games if
 					  (game.online_players >= min_supported_players and
 					   game.online_players <= max_supported_players and
@@ -85,8 +88,34 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	# Sort by score (highest first)
 	filtered_games.sort(key=lambda x: x.score, reverse=True)
 	
+	# Get scraping status
+	status = scraper.get_status()
+	
 	return {
 		"games": [game.to_dict() for game in filtered_games],
+		"scraping_in_progress": status["scraping_in_progress"],
+		"last_scrape_hours_ago": status["last_scrape_hours_ago"]
+	}
+
+@app.get("/scrape/status")
+async def get_scrape_status():
+	"""Get current scraping status"""
+	return scraper.get_status()
+
+@app.post("/scrape/start")
+async def start_manual_scrape():
+	"""Manually trigger a scraping operation"""
+	success, message = scraper.manual_scrape()
+	
+	if not success:
+		raise HTTPException(
+			status_code=409,
+			detail=message
+		)
+	
+	return {
+		"message": message,
+		"scraping_in_progress": True
 	}
 
 @app.get("/countries.json")
@@ -94,7 +123,7 @@ async def serve_countries():
 	return FileResponse("Countries.json")
 
 @app.get("/Logo.svg")
-async def serve_countries():
+async def serve_logo():
 	return FileResponse("Logo.svg")
 
 @app.get("/")
