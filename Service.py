@@ -30,7 +30,7 @@ app.mount("/static", StaticFiles(directory="."), name="static")
 
 # Load games on startup and start continuous scraping
 initial_games = load_games_from_file(games_file)
-scraper.load_initial_games(initial_games)
+scraper.set_games(initial_games)
 scraper.start_continuous_scraping()
 
 def is_within_date_range(game, from_date, to_date):
@@ -54,6 +54,25 @@ def validate_date_string(date_str, param_name):
 			detail=f"Invalid date format for {param_name}. Expected format: YYYY-MM-DD"
 		)
 
+def validate_player_count_range(min_players, max_players):
+	if min_players < 1 or max_players < 1:
+		raise HTTPException(
+			status_code=400,
+			detail="Player counts must be greater than 0"
+		)
+	if min_players > max_players:
+		raise HTTPException(
+			status_code=400,
+			detail="min_supported_players cannot be greater than max_supported_players"
+		)
+	
+def validate_date_ranges(from_date, to_date):
+	if from_date and to_date and from_date > to_date:
+		raise HTTPException(
+			status_code=400,
+			detail="release_date_from cannot be later than release_date_to"
+		)
+
 @app.get("/games")
 async def get_games(min_supported_players: Optional[int] = 1, 
 				   max_supported_players: Optional[int] = 100,
@@ -67,20 +86,9 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	
 	from_date = validate_date_string(release_date_from, "release_date_from")
 	to_date = validate_date_string(release_date_to, "release_date_to")
-
-	# Check if min_supported_players is less than max_supported_players
-	if min_supported_players > max_supported_players:
-		raise HTTPException(
-			status_code=400,
-			detail="min_supported_players cannot be greater than max_supported_players"
-		)
 	
-	# Check if from_date is after to_date
-	if from_date and to_date and from_date > to_date:
-		raise HTTPException(
-			status_code=400,
-			detail="release_date_from cannot be later than release_date_to"
-		)
+	validate_player_count_range(min_supported_players, max_supported_players)
+	validate_date_ranges(from_date, to_date)
 	
 	games = scraper.get_games()
 	filtered_games = [game for game in games if

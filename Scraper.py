@@ -14,7 +14,7 @@ class Scraper:
 		self.scraping_start_year = 1988
 		self.scraping_end_year = datetime.now().year 
 		self.scraping_in_progress = False
-		self.last_scrape_time = 0
+		self.last_scrape_time = time.time()
 		self.games_lock = threading.RLock()
 		self.games = []
 		self.continuous_thread = None
@@ -29,10 +29,6 @@ class Scraper:
 		"""Get current games list (thread-safe)"""
 		with self.games_lock:
 			return self.games.copy()
-	
-	def load_initial_games(self, games):
-		self.set_games(games)
-		self.last_scrape_time = time.time()
 
 	def set_games(self, new_games):
 		"""Set games list (thread-safe)"""
@@ -55,10 +51,7 @@ class Scraper:
 		self.scraping_state = "Finding games"
 		games = self.fetch_coop_games("local")
 		
-		self.scraping_state = f"Removing duplicates ({len(games)})"
-		# Remove duplicates based on steam_id
-		seen_steam_ids = set()
-		games = list(filter(lambda game: game.steam_id not in seen_steam_ids and not seen_steam_ids.add(game.steam_id), games))
+		games = self.remove_duplicates(games)
 
 		count = len(games)
 		i = 1
@@ -82,21 +75,10 @@ class Scraper:
 	
 	def fetch_coop_games(self, mode):
 		all_games = []
-		for year in range(self.scraping_start_year, self.scraping_end_year + 1):
-			yearly = self.get_cooptimus_games_data({"releaseyear": year})
-			print(f"Year: {year}, Games found: {len(yearly)}")
-			if len(yearly) == 40:
-				print("Found more than 40 games, scraping by month...")
-				yearly = []
-				for month in range(1, 13):
-					monthly = self.get_cooptimus_games_data({"releaseyear": year, "releasemonth": month})
-					print(f"Year: {year}, Month: {month}, Games found: {len(monthly)}")
-					yearly.extend(monthly)
-			
-			print(f"Total games for {year}: {len(yearly)}")
-			all_games.extend(yearly)
-
-		print(len(all_games))
+		if len(self.games) == 0:
+			all_games = self.fetch_all_coop_games()
+		else:
+			all_games = self.fetch_updated_since_last()
 
 		games = []
 		for game in all_games:
@@ -118,6 +100,27 @@ class Scraper:
 				print(f"Failed to parse game entry: {e}")
 		
 		return games
+	
+	def fetch_all_coop_games(self):
+		all_games = []
+		for year in range(self.scraping_start_year, self.scraping_end_year + 1):
+			yearly = self.get_cooptimus_games_data({"releaseyear": year})
+			print(f"Year: {year}, Games found: {len(yearly)}")
+			if len(yearly) == 40:
+				print("Found more than 40 games, scraping by month...")
+				yearly = []
+				for month in range(1, 13):
+					monthly = self.get_cooptimus_games_data({"releaseyear": year, "releasemonth": month})
+					print(f"Year: {year}, Month: {month}, Games found: {len(monthly)}")
+					yearly.extend(monthly)
+			
+			print(f"Total games for {year}: {len(yearly)}")
+			all_games.extend(yearly)
+
+		print(len(all_games))
+	
+	def fetch_updated_since_last(self):
+		return self.get_cooptimus_games_data({"updatedsince": self.last_scrape_time.strftime('%Y-%m-%dT%H:%M:%S')})
 
 	def get_cooptimus_games_data(self, params):
 		url = "https://api.co-optimus.com/games.php"
@@ -128,6 +131,10 @@ class Scraper:
 
 		root = BeautifulSoup(r.content, "lxml-xml")
 		return root.find_all("game")
+
+	def remove_duplicates(self, games):
+		seen_steam_ids = set()
+		games = list(filter(lambda game: game.steam_id not in seen_steam_ids and not seen_steam_ids.add(game.steam_id), games))
 	
 	def validate_steam_id(self, game):
 		if game.steam_id in invalid_steam_id_mappings:
@@ -189,24 +196,33 @@ class Scraper:
 		except:
 			return
 
-	
 	def scrape_games_background(self):
 		try:
 			self.scraping_in_progress = True
 			print("\n=== Starting background scraping ===")
 			
-			# Run the scraping (this takes several minutes)
+			# Run the scraping (this takes hours)
 			new_games = self.scrape_games()
 			
-			save_games_to_file(new_games, self.games_file)
+			merged_games = self.merge_games(new_games)
+			save_games_to_file(merged_games, self.games_file)
 			
-			self.set_games(new_games)
+			self.set_games(merged_games)
 			
 			self.last_scrape_time = time.time()
 			print(f"\n=== Background scraping completed. Found {len(new_games)} games ===\n")
 		finally:
 			self.scraping_in_progress = False
 			self.scraping_state = "None"
+
+	def merge_games(self, new_games):
+		existing_games_dict = {game.steam_id: game for game in self.games}
+		
+		# Update existing games with new data or add new games
+		for new_game in new_games:
+			existing_games_dict[new_game.steam_id] = new_game
+		
+		return list(existing_games_dict.values())
 
 	def continuous_scraping_thread(self):
 		print(f"\n=== Starting continuous scraping thread (every {self.scrape_interval_hours} hours) ===\n")
