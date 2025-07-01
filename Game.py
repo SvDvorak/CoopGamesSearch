@@ -9,7 +9,9 @@ class Game:
 	steam_rating = 0				# 0.0–1.0 float (e.g., 0.85)
 	number_of_reviews = 0
 	release_date = None				# Date time
-	online_players = 0				# Supported co-op players
+	couch_players = 0				# Supported couch players
+	lan_players = 0					# Supported LAN players
+	online_players = 0				# Supported online players
 	cooptimus_url = ""
 	steam_url = ""
 	header_image = None
@@ -32,7 +34,9 @@ class Game:
 			f"{self.title}\n"
 			f"  Price: ${self.price / 100:.2f}\n"
 			f"  Steam Rating: {self.steam_rating * 100:.2f}%\n"
-			f"  Max Players: {self.online_players}\n"
+			f"  Couch Players: {self.couch_players}\n"
+			f"  LAN Players: {self.lan_players}\n"
+			f"  Online Players: {self.online_players}\n"
 			f"  Score: {self.score:.2f}\n"
 			f"  URL: {self.steam_url}\n"
 		)
@@ -47,6 +51,8 @@ class Game:
 			"number_of_reviews": self.number_of_reviews,
 			"is_released": self.is_released,
 			"release_date": self.release_date.strftime("%d %b, %Y") if self.is_released else None,
+			"couch_players": self.couch_players,
+			"lan_players": self.lan_players,
 			"online_players": self.online_players,
 			"cooptimus_url": self.cooptimus_url,
 			"steam_url": self.steam_url,
@@ -69,6 +75,8 @@ class Game:
 			obj.release_date = datetime.strptime(date_string, "%d %b, %Y").date()
 		else:
 			obj.release_date = None
+		obj.couch_players = int(data["couch_players"])
+		obj.lan_players = int(data["lan_players"])
 		obj.online_players = int(data["online_players"])
 		obj.cooptimus_url = data["cooptimus_url"]
 		obj.steam_url = data["steam_url"]

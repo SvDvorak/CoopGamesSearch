@@ -42,7 +42,8 @@ class Scraper:
 			"scraping_in_progress": self.scraping_in_progress,
 			"scraping_state": self.scraping_state,
 			"last_scrape_hours_ago": self.last_scrape_hours_ago() if self.last_scrape_time > 0 else None,
-			"scrape_interval_hours": self.scrape_interval_hours
+			"scrape_interval_hours": self.scrape_interval_hours,
+			"number_of_games": len(self.games) if self.games else 0
 		}
 
 	def last_scrape_hours_ago(self):
@@ -52,22 +53,22 @@ class Scraper:
 		games = []
 		self.scraping_state = "Finding games"
 		for i in range(self.min_supported_players, self.max_supported_players + 1):
-			games.extend(self.fetch_coop_games(i))
-		
-		print(f"\n1. Found {len(games)} games")
+			games.extend(self.fetch_coop_games(i, "online"))
+		for i in range(self.min_supported_players, self.max_supported_players + 1):
+			games.extend(self.fetch_coop_games(i, "local"))
 		
 		self.scraping_state = "Removing duplicates"
 		# Remove duplicates based on steam_id
 		seen_steam_ids = set()
 		games = list(filter(lambda game: game.steam_id not in seen_steam_ids and not seen_steam_ids.add(game.steam_id), games))
-		
-		print(f"\n2. {len(games)} games")
 
 		count = len(games)
 		i = 1
 		for game in games:
 			self.scraping_state = f"Getting Steam data ({i}/{count})"
-			self.validate_steam_id(game)
+			if not self.validate_steam_id(game):
+				count -= 1
+				continue
 			self.add_steam_data(game)
 			if game.is_delisted:
 				count -= 1
@@ -77,17 +78,17 @@ class Scraper:
 			i += 1
 			time.sleep(5)  # Avoid hitting Steam API too hard
 
-		print(f"\n3. {len(games)} games")
-
 		games = list(filter(lambda x: not x.is_delisted, games))
-
-		print(f"\n4. {len(games)} games")
 
 		return games
 	
-	def fetch_coop_games(self, players):
+	def fetch_coop_games(self, players, mode="online"):
 		url = "https://api.co-optimus.com/games.php"
-		params = {"search": "true", "systemName": "pc", "online_num": f"{players}"}
+		params = {"search": "true", "systemName": "pc"}
+		if mode == "local":
+			params["offline_num"] = players
+		else:
+			params["online_num"] = players
 		r = requests.get(url, params=params)
 		r.raise_for_status()  # Raise error if request failed
 
@@ -102,6 +103,8 @@ class Scraper:
 				g = Game()
 				g.title = game.find("title").text
 				g.steam_id = game.find("steam").text
+				g.couch_players = int(game.find("local").text or 0)
+				g.lan_players = int(game.find("lan").text or 0)
 				g.online_players = int(game.find("online").text or 0)
 				g.cooptimus_url = game.find("url").text
 				g.steam_url = f"https://store.steampowered.com/app/{g.steam_id}"
@@ -115,13 +118,18 @@ class Scraper:
 	def validate_steam_id(self, game):
 		if game.steam_id in invalid_steam_id_mappings:
 			game.steam_id = invalid_steam_id_mappings[game.steam_id]
+		if game.steam_id in ignored_steam_ids:
+			game.is_delisted = True
+			return False
+		return True
 
 	def add_steam_data(self, game):
 		url = f"https://store.steampowered.com/api/appdetails?appids={game.steam_id}&cc={self.country_code}"
-		response = requests.get(url).json()
+		response = requests.get(url)
+		response.raise_for_status()  # Raise error if request failed
 		game_response = {}
 		try:
-			game_response = response[str(game.steam_id)]
+			game_response = response.json()[str(game.steam_id)]
 			if not game_response["success"]:
 				raise Exception("Delisted game")
 		except:
@@ -235,4 +243,26 @@ invalid_steam_id_mappings = {
 	"362003": "3240220",
 	"41010": "41014",
 	"32690": "32770",
+	"21019": "21010",
+	"35709": "35700",
+	"11202": "11200",
+	"204140": "209360",
+}
+
+ignored_steam_ids = {
+	"38209",
+	"23100",
+	"33420",
+	"235760",
+	"240380",
+	"10530",
+	"20590",
+	"463680",
+	"206950",
+	"9930",
+	"1501980",
+	"32700",
+	"21649",
+	"1368440",
+	"9990",
 }

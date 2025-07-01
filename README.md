@@ -4,13 +4,13 @@ A web application for finding co-operative games by player count, price, and Ste
 
 ## Features
 
-- Scrapes co-op games from Co-Optimus for 2-100 players
+- Scrapes Co-Optimus for local, LAN & online games
 - Integrates Steam data including prices, ratings, descriptions, and tags
 - Filter by player count, release date, and scoring preferences
 - Customizable weighting between game rating and price
-- Automatic game database updates every 4 hours
-- Real-time scraping progress monitoring
-- Docker containerized
+- Re-scrapes games every 4 hours
+- Scraping progress monitoring
+- Docker container support
 
 ## Data Sources
 
@@ -60,16 +60,36 @@ pip install -r requirements.txt
 
 2. **Run the application**:
 ```bash
-python Service.py
+uvicorn Service:app --host 0.0.0.0 --port 8000
 ```
 
 3. **Access the application**:
 Open `http://localhost:8000` in your browser
 
+## Notes
+
+- Initial scraping can take 10-20 minutes for the full game database.
+- Delisted or unavailable games are filtered out during scraping
+- Some games on Co-optimus has the wrong Steam IDs so we manually map them to correct ones.
+- The application includes rate limiting by delaying Steam calls by a few seconds for each game, so we don't trigger 429 Too Many Requests.
+
+## Game Scoring Algorithm
+
+Games are scored using a weighted combination of:
+- **Steam rating**: Percentage of positive reviews (0.0-1.0) (higher = higher score)
+- **Price**: Price of the game (cheaper = higher score)
+- **User weight**: Configurable balance between rating and price importance
+- **User defined 'high price'**: What the user considers to be an expensive game; higher value gives less penalty for expensive games.
+
+Formula: `score = (steam_rating ^ 2 × rating_weight) - (price / high_price × (1 - rating_weight))`
+
 ## API Endpoints
 
 - `GET /` - Serves the main frontend page
+- `GET /logo.svg` - The appicon logo
 - `GET /games` - Returns filtered and scored games
+- `GET /scrape/status")` - Returns current state of scraping
+- `POST /scrape/start")` - Triggers a new scraping. This endpoint can be disabled by changing allow_manual_scrape in Service.py 
 
 ## Technology Stack
 
@@ -77,20 +97,4 @@ Open `http://localhost:8000` in your browser
 - **Frontend**: Vue.js 3 (via CDN), HTML5, CSS3
 - **Data Processing**: BeautifulSoup4, Requests
 - **Containerization**: Docker, Docker Compose
-- **Data Storage**: JSON file-based persistence
-
-## Game Scoring Algorithm
-
-Games are scored using a weighted combination of:
-- **Steam Rating**: Percentage of positive reviews (0.0-1.0)
-- **Price Factor**: Inverse relationship to price (cheaper = higher score)
-- **User Weight**: Configurable balance between rating and price importance
-
-Formula: `score = (rating_weight × steam_rating) + ((1 - rating_weight) × price_factor)`
-
-## Notes
-
-- Initial scraping can take 10-15 minutes for the full game database
-- Games with invalid Steam IDs are automatically corrected using a mapping table
-- Delisted or unavailable games are filtered out during scraping
-- The application includes rate limiting to respect Steam API guidelines
+- **Data Storage**: JSON file persistence

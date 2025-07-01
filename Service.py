@@ -20,6 +20,7 @@ app.add_middleware(
 )
 
 games_file = "games.json"
+allow_manual_scrape = True # If True, allows manual scraping via API endpoint
 
 # Initialize scraper
 scraper = Scraper(games_file, scrape_interval_hours=4)
@@ -102,23 +103,24 @@ async def get_scrape_status():
 	"""Get current scraping status"""
 	return scraper.get_status()
 
-@app.post("/scrape/start")
-async def start_manual_scrape():
-	"""Manually trigger a scraping operation"""
-	success, message = scraper.manual_scrape()
-	
-	if not success:
-		raise HTTPException(
-			status_code=409,
-			detail=message
-		)
-	
-	return {
-		"message": message,
-		"scraping_in_progress": True
-	}
+if allow_manual_scrape:
+	@app.post("/scrape/start")
+	async def start_manual_scrape():
+		"""Manually trigger a scraping operation"""
+		success, message = scraper.manual_scrape()
+		
+		if not success:
+			raise HTTPException(
+				status_code=409,
+				detail=message
+			)
+		
+		return {
+			"message": message,
+			"scraping_in_progress": True
+		}
 
-@app.get("/Logo.svg")
+@app.get("/logo.svg")
 async def serve_logo():
 	return FileResponse("Logo.svg")
 
