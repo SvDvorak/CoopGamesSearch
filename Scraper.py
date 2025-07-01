@@ -67,6 +67,7 @@ class Scraper:
 		i = 1
 		for game in games:
 			self.scraping_state = f"Getting Steam data ({i}/{count})"
+			self.validate_steam_id(game)
 			self.add_steam_data(game)
 			if game.is_delisted:
 				count -= 1
@@ -74,7 +75,7 @@ class Scraper:
 			self.add_rating(game)
 			self.add_tags(game)
 			i += 1
-			time.sleep(1)  # Avoid hitting Steam API too hard
+			time.sleep(5)  # Avoid hitting Steam API too hard
 
 		print(f"\n3. {len(games)} games")
 
@@ -110,6 +111,10 @@ class Scraper:
 				print(f"Failed to parse game entry: {e}")
 		
 		return games
+	
+	def validate_steam_id(self, game):
+		if game.steam_id in invalid_steam_id_mappings:
+			game.steam_id = invalid_steam_id_mappings[game.steam_id]
 
 	def add_steam_data(self, game):
 		url = f"https://store.steampowered.com/api/appdetails?appids={game.steam_id}&cc={self.country_code}"
@@ -211,3 +216,23 @@ class Scraper:
 		scraping_thread = threading.Thread(target=self.scrape_games_background, daemon=True)
 		scraping_thread.start()
 		return True, "Scraping started"
+
+invalid_steam_id_mappings = {
+	"8110": "8100",
+	"12799": "12790",
+	"10199": "1962660",
+	"12819": "12810",
+	"48129": "965320",
+	"22700": "225640",
+	"8989": "8980",
+	"12219": "12210",
+	"1259": "1250",
+	"206940": "321800",
+	"42749": "42700",
+	"271290": "705040",
+	"212180": "1263550",
+	"22359": "22350",
+	"362003": "3240220",
+	"41010": "41014",
+	"32690": "32770",
+}
