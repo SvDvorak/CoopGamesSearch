@@ -8,9 +8,11 @@ from Game import Game
 from GameStorage import save_games_to_file
 
 class Scraper:
-	def __init__(self, games_file="games.json", scrape_interval_hours=4):
+	def __init__(self, games_file, scrape_interval_hours):
 		self.games_file = games_file
 		self.scrape_interval_hours = scrape_interval_hours
+		self.scraping_start_year = 1988
+		self.scraping_end_year = datetime.now().year 
 		self.scraping_in_progress = False
 		self.last_scrape_time = 0
 		self.games_lock = threading.RLock()
@@ -50,14 +52,10 @@ class Scraper:
 		return (time.time() - self.last_scrape_time) / 3600 # Convert to hours
 
 	def scrape_games(self):
-		games = []
 		self.scraping_state = "Finding games"
-		for i in range(self.min_supported_players, self.max_supported_players + 1):
-			games.extend(self.fetch_coop_games(i, "online"))
-		for i in range(self.min_supported_players, self.max_supported_players + 1):
-			games.extend(self.fetch_coop_games(i, "local"))
+		games = self.fetch_coop_games("local")
 		
-		self.scraping_state = "Removing duplicates"
+		self.scraping_state = f"Removing duplicates ({len(games)})"
 		# Remove duplicates based on steam_id
 		seen_steam_ids = set()
 		games = list(filter(lambda game: game.steam_id not in seen_steam_ids and not seen_steam_ids.add(game.steam_id), games))
@@ -82,20 +80,26 @@ class Scraper:
 
 		return games
 	
-	def fetch_coop_games(self, players, mode="online"):
-		url = "https://api.co-optimus.com/games.php"
-		params = {"search": "true", "systemName": "pc"}
-		if mode == "local":
-			params["offline_num"] = players
-		else:
-			params["online_num"] = players
-		r = requests.get(url, params=params)
-		r.raise_for_status()  # Raise error if request failed
+	def fetch_coop_games(self, mode):
+		all_games = []
+		for year in range(self.scraping_start_year, self.scraping_end_year + 1):
+			yearly = self.get_cooptimus_games_data({"releaseyear": year})
+			print(f"Year: {year}, Games found: {len(yearly)}")
+			if len(yearly) == 40:
+				print("Found more than 40 games, scraping by month...")
+				yearly = []
+				for month in range(1, 13):
+					monthly = self.get_cooptimus_games_data({"releaseyear": year, "releasemonth": month})
+					print(f"Year: {year}, Month: {month}, Games found: {len(monthly)}")
+					yearly.extend(monthly)
+			
+			print(f"Total games for {year}: {len(yearly)}")
+			all_games.extend(yearly)
 
-		root = BeautifulSoup(r.content, "lxml-xml")
+		print(len(all_games))
+
 		games = []
-
-		for game in root.find_all("game"):
+		for game in all_games:
 			try:
 				if not game.find("steam"):
 					continue
@@ -114,6 +118,16 @@ class Scraper:
 				print(f"Failed to parse game entry: {e}")
 		
 		return games
+
+	def get_cooptimus_games_data(self, params):
+		url = "https://api.co-optimus.com/games.php"
+		params["search"] = "true"
+		params["systemName"] = "pc"
+		r = requests.get(url, params=params)
+		r.raise_for_status()
+
+		root = BeautifulSoup(r.content, "lxml-xml")
+		return root.find_all("game")
 	
 	def validate_steam_id(self, game):
 		if game.steam_id in invalid_steam_id_mappings:

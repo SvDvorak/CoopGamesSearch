@@ -23,7 +23,7 @@ games_file = "games.json"
 allow_manual_scrape = True # If True, allows manual scraping via API endpoint
 
 # Initialize scraper
-scraper = Scraper(games_file, scrape_interval_hours=4)
+scraper = Scraper(games_file, scrape_interval_hours=12)
 
 # Serve static files (HTML, CSS, JS)
 app.mount("/static", StaticFiles(directory="."), name="static")
@@ -67,6 +67,13 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	
 	from_date = validate_date_string(release_date_from, "release_date_from")
 	to_date = validate_date_string(release_date_to, "release_date_to")
+
+	# Check if min_supported_players is less than max_supported_players
+	if min_supported_players > max_supported_players:
+		raise HTTPException(
+			status_code=400,
+			detail="min_supported_players cannot be greater than max_supported_players"
+		)
 	
 	# Check if from_date is after to_date
 	if from_date and to_date and from_date > to_date:
