@@ -118,10 +118,6 @@ async def start_manual_scrape():
 		"scraping_in_progress": True
 	}
 
-@app.get("/countries.json")
-async def serve_countries():
-	return FileResponse("Countries.json")
-
 @app.get("/Logo.svg")
 async def serve_logo():
 	return FileResponse("Logo.svg")
