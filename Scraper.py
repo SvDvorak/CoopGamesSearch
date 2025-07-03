@@ -67,7 +67,7 @@ class Scraper:
 			self.add_rating(game)
 			self.add_tags(game)
 			i += 1
-			time.sleep(5)  # Avoid hitting Steam API too hard
+			time.sleep(2)  # Avoid hitting Steam API too hard
 
 		games = list(filter(lambda x: not x.is_delisted, games))
 
@@ -118,6 +118,7 @@ class Scraper:
 			all_games.extend(yearly)
 
 		print(len(all_games))
+		return all_games
 	
 	def fetch_updated_since_last(self):
 		return self.get_cooptimus_games_data({"updatedsince": self.last_scrape_time.strftime('%Y-%m-%dT%H:%M:%S')})
@@ -126,15 +127,14 @@ class Scraper:
 		url = "https://api.co-optimus.com/games.php"
 		params["search"] = "true"
 		params["systemName"] = "pc"
-		r = requests.get(url, params=params)
-		r.raise_for_status()
+		r = self.try_request(url, params=params)
 
 		root = BeautifulSoup(r.content, "lxml-xml")
 		return root.find_all("game")
 
 	def remove_duplicates(self, games):
 		seen_steam_ids = set()
-		games = list(filter(lambda game: game.steam_id not in seen_steam_ids and not seen_steam_ids.add(game.steam_id), games))
+		return list(filter(lambda game: game.steam_id not in seen_steam_ids and not seen_steam_ids.add(game.steam_id), games))
 	
 	def validate_steam_id(self, game):
 		if game.steam_id in invalid_steam_id_mappings:
@@ -146,8 +146,8 @@ class Scraper:
 
 	def add_steam_data(self, game):
 		url = f"https://store.steampowered.com/api/appdetails?appids={game.steam_id}&cc={self.country_code}"
-		response = requests.get(url)
-		response.raise_for_status()  # Raise error if request failed
+		response = self.try_request(url)
+
 		game_response = {}
 		try:
 			game_response = response.json()[str(game.steam_id)]
@@ -178,7 +178,7 @@ class Scraper:
 	def add_rating(self, game):
 		url = f"https://store.steampowered.com/appreviews/{game.steam_id}"
 		params = {"json": 1, "num_per_page": 1, "language": "all", "purchase_type": "all"}
-		r = requests.get(url, params=params).json()
+		r = self.try_request(url, params=params).json()
 		q = r.get("query_summary", {})
 		game.number_of_reviews = q.get("total_reviews")
 		if game.number_of_reviews == 0:
@@ -188,13 +188,23 @@ class Scraper:
 
 	def add_tags(self, game):
 		"""Add tags to game via SteamSpy"""
-		url = f"https://steamspy.com/api.php?request=appdetails&appid={game.steam_id}"
-		response = requests.get(url)
+		response = self.try_request(f"https://steamspy.com/api.php?request=appdetails&appid={game.steam_id}")
 		data = response.json()
 		try:
 			game.tags = list(data.get("tags", {}).keys())
 		except:
 			return
+		
+	def try_request(self, url, params=None, retries=15):
+		for attempt in range(retries):
+			try:
+				response = requests.get(url, params=params)
+				response.raise_for_status()
+				return response
+			except requests.RequestException as e:
+				print(f"Request failed ({attempt + 1}/{retries}): {e}")
+				time.sleep(2 ** attempt)
+		raise Exception(f"Failed to fetch {url} after {retries} attempts")
 
 	def scrape_games_background(self):
 		try:
@@ -238,7 +248,6 @@ class Scraper:
 				
 			except Exception as e:
 				print(f"\nError in continuous scraping thread: {e}")
-				# Wait a bit before retrying
 				time.sleep(300)  # 5 minutes
 	
 	def start_continuous_scraping(self):
