@@ -50,6 +50,11 @@
 			margin-top: 10px;
 			margin-bottom: 8px;
 		}
+		.game-info {
+			display: flex;
+			flex-direction: row;
+			gap: 40px;
+		}
 		.links a {
 			margin-right: 10px;
 		}
@@ -88,6 +93,7 @@
 			padding: 4px 6px;
 			border: 1px solid #ddd;
 			border-radius: 4px;
+			background-color: #fff;
 		}
 		.filter-inputs input {
 			width: 120px;
@@ -154,6 +160,11 @@
 						<input class="filter-input" type="number" v-model.number="filters.min_supported_players" @input="updateFilters" min="1" max="100">
 						<span class="filter-to-label">to</span>
 						<input class="filter-input" type="number" v-model.number="filters.max_supported_players" @input="updateFilters" min="1" max="100">
+						<select class="filter-input" v-model="filters.player_type" @change="updateFilters">
+							<option value="couch">Couch</option>
+							<option value="lan">LAN</option>
+							<option value="online">Online</option>
+						</select>
 					</div>
 				</div>
 
@@ -242,14 +253,20 @@
 		<div class="rounded-box game" v-for="(g, index) in games" :key="`game-${g.steam_id || index}`">
 			<img :src="g.header_image" :alt="'Header for ' + g.title">
 			<h2>{{ g.title }}</h2>
-			<p>
-				<strong>Score:</strong> {{ g.score.toFixed(3) }}<br>
-				<strong>Price:</strong> {{ g.price > 0 ? (g.price / 100).toFixed(2) + '€' : 'Free' }}<br>
-				<strong>Steam Rating:</strong> {{ g.steam_rating > 0 ? (g.steam_rating * 100).toFixed(1) + '%' : 'N/A' }}
-				({{ g.number_of_reviews }} reviews)<br>
-				<strong>Release Date:</strong> {{ g.is_released ? formatDate(g.release_date) : 'Coming soon' }}<br>
-				<strong>Online Players:</strong> {{ g.online_players }}
-			</p>
+			<div class="game-info">
+				<p>
+					<strong>Score:</strong> {{ g.score.toFixed(3) }}<br>
+					<strong>Price:</strong> {{ g.price > 0 ? (g.price / 100).toFixed(2) + '€' : 'Free' }}<br>
+					<strong>Steam Rating:</strong> {{ g.steam_rating > 0 ? (g.steam_rating * 100).toFixed(1) + '%' : 'N/A' }}
+					({{ g.number_of_reviews }} reviews)<br>
+					<strong>Release Date:</strong> {{ g.is_released ? formatDate(g.release_date) : 'Coming soon' }}<br>
+				</p>
+				<p>
+					<strong>Couch Players:</strong> {{ g.couch_players }}<br>
+					<strong>LAN Players:</strong> {{ g.lan_players }}<br>
+					<strong>Online Players:</strong> {{ g.online_players }}<br>
+				</p>
+			</div>
 			<p>{{ decodeHtml(g.short_description) }}</p>
 			<div class="links">
 				<a :href="g.steam_url" target="_blank">Steam Page</a>
@@ -279,6 +296,7 @@
 					filters: {
 						min_supported_players: 1,
 						max_supported_players: 100,
+						player_type: 'online',
 						free_games: true,
 						unreleased_games: true,
 						release_date_from: earliestDate,

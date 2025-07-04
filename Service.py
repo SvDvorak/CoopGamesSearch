@@ -83,9 +83,19 @@ def validate_pagination(page):
 def ceiling_division(a, b):
     return -(a // -b)
 
+def matches_players(game, min_players, max_players, player_type):
+	player_type = player_type.lower()
+	if player_type == 'couch':
+		return game.couch_players >= min_players and game.couch_players <= max_players
+	elif player_type == 'lan':
+		return game.lan_players >= min_players and game.lan_players <= max_players
+	else:
+		return game.online_players >= min_players and game.online_players <= max_players
+
 @app.get("/games")
 async def get_games(min_supported_players: Optional[int] = 1, 
 				   max_supported_players: Optional[int] = 100,
+				   player_type: Optional[str] = 'online',	# couch, lan, online
 				   free_games: Optional[bool] = True,
 				   unreleased_games: Optional[bool] = True,
 				   release_date_from: Optional[str] = '1988-08-20',
@@ -104,8 +114,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	
 	games = scraper.get_games()
 	filtered_games = [game for game in games if
-					  (game.online_players >= min_supported_players and
-					   game.online_players <= max_supported_players and
+					  (matches_players(game, min_supported_players, max_supported_players, player_type) and
 					   (free_games or game.price > 0) and
 					   (unreleased_games or game.is_released) and
 					   is_within_date_range(game, from_date, to_date))]
