@@ -231,7 +231,7 @@
 		</div>
 
 		<!-- Error message -->
-		<div v-if="error" class="error">
+		<div v-if="error" class="rounded-box error">
 			{{ error }}
 		</div>
 
@@ -296,6 +296,8 @@
 					games: [],
 					loading: false,
 					error: null,
+					debounceTimer: null,
+					debounceTime: 300,
 					pagination: {
 						current_page: 1,
 						total_pages: 1,
@@ -312,7 +314,7 @@
 						weight_rating: 0.7,
 						weight_price: 0.3,
 						high_price: 20.0,
-						min_reviews: 0,
+						min_reviews: 10,
 					},
 				};
 			},
@@ -321,8 +323,12 @@
 			},
 			methods: {
 				async fetchGames() {
+					if(!this.validFilters())
+						return;
+
 					this.loading = true;
 					this.error = null; // Clear previous errors
+					console.log(this.filters.min_supported_players)
 					try {
 						search_params = this.filters;
 						search_params.page = this.pagination.current_page;
@@ -344,6 +350,12 @@
 					} finally {
 						this.loading = false;
 					}
+				},
+				validFilters() {
+					return this.filters.min_supported_players != "" &&
+						this.filters.max_supported_players != "" &&
+						this.filters.min_reviews != "" &&
+						this.filters.high_price != "";
 				},
 				updateWeights(type) {
 					// Ensure weights always sum to 1
@@ -367,9 +379,15 @@
 					}
 				},
 				updateFilters() {
-					// Reset to page 1 when filters change
-					this.pagination.current_page = 1;
-					this.fetchGames();
+					if (this.debounceTimer) {
+						clearTimeout(this.debounceTimer);
+					}
+					
+					this.debounceTimer = setTimeout(() => {
+						// Reset to page 1 when filters change
+						this.pagination.current_page = 1;
+						this.fetchGames();
+					}, this.debounceTime);
 				},
 				decodeHtml(html) {
 					const txt = document.createElement('textarea');
