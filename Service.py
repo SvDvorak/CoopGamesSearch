@@ -95,15 +95,16 @@ def matches_players(game, min_players, max_players, player_type):
 @app.get("/games")
 async def get_games(min_supported_players: Optional[int] = 1, 
 				   max_supported_players: Optional[int] = 100,
-				   player_type: Optional[str] = 'online',	# couch, lan, online
+				   player_type: Optional[str] = 'online',								# Couch, lan, online
 				   free_games: Optional[bool] = True,
 				   unreleased_games: Optional[bool] = True,
-				   release_date_from: Optional[str] = '1988-08-20',
-				   release_date_to: Optional[str] = date.today().strftime("%Y-%m-%d"),
-				   weight_rating: Optional[float] = 0.7,	# How much game the rating is taken into account
-				   weight_price: Optional[float] = 0.3,		# How much price is taken into account
-				   high_price: Optional[float] = 20,		# What an "expensive" game classifies as
-				   page: Optional[int] = 1):				# Page number (1-based)
+				   release_date_from: Optional[str] = '1988-08-20',						# YYYY-MM-DD format
+				   release_date_to: Optional[str] = date.today().strftime("%Y-%m-%d"),	# YYYY-MM-DD format
+				   weight_rating: Optional[float] = 0.7,								# How much game the rating is taken into account
+				   weight_price: Optional[float] = 0.3,									# How much price is taken into account
+				   high_price: Optional[float] = 20,									# What an "expensive" game classifies as
+				   min_reviews: Optional[int] = 0,										# Minimum number of reviews required
+				   page: Optional[int] = 1):											# Page number (1-based)
 	
 	from_date = validate_date_string(release_date_from, "release_date_from")
 	to_date = validate_date_string(release_date_to, "release_date_to")
@@ -117,6 +118,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 					  (matches_players(game, min_supported_players, max_supported_players, player_type) and
 					   (free_games or game.price > 0) and
 					   (unreleased_games or game.is_released) and
+					   (game.number_of_reviews >= min_reviews) and
 					   is_within_date_range(game, from_date, to_date))]
 
 	for game in filtered_games:
@@ -126,7 +128,6 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	filtered_games.sort(key=lambda x: x.score, reverse=True)
 	
 	page_size = 40
-	print(page)
 	total_pages = ceiling_division(len(filtered_games), page_size)
 	start_index = (page - 1) * page_size
 	end_index = start_index + page_size

@@ -178,6 +178,14 @@
 					</div>
 				</div>
 
+				<!-- Minimum reviews row -->
+				<div class="filter-row">
+					<h4>Minimum Reviews</h4>
+					<div class="filter-inputs">
+						<input class="filter-input" type="number" v-model.number="filters.min_reviews" @input="updateFilters" min="0">
+					</div>
+				</div>
+
 				<!-- Checkboxes -->
 				<div class="checkbox-group">
 					<label>
@@ -304,6 +312,7 @@
 						weight_rating: 0.7,
 						weight_price: 0.3,
 						high_price: 20.0,
+						min_reviews: 0,
 					},
 				};
 			},
@@ -324,7 +333,7 @@
 							const errorData = await response.json();
 							throw new Error(errorData.detail || `Server error: ${response.status}`);
 						}
-									const data = await response.json();
+					const data = await response.json();
 					this.games = data.games;
 					this.pagination.total_pages = data.pagination.total_pages;
 					this.pagination.page_size = data.pagination.page_size;
