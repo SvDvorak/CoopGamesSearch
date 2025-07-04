@@ -73,6 +73,16 @@ def validate_date_ranges(from_date, to_date):
 			detail="release_date_from cannot be later than release_date_to"
 		)
 
+def validate_pagination(page):
+	if page < 1:
+		raise HTTPException(
+			status_code=400,
+			detail="Page number must be greater than 0"
+		)
+
+def ceiling_division(a, b):
+    return -(a // -b)
+
 @app.get("/games")
 async def get_games(min_supported_players: Optional[int] = 1, 
 				   max_supported_players: Optional[int] = 100,
@@ -82,13 +92,15 @@ async def get_games(min_supported_players: Optional[int] = 1,
 				   release_date_to: Optional[str] = date.today().strftime("%Y-%m-%d"),
 				   weight_rating: Optional[float] = 0.7,	# How much game the rating is taken into account
 				   weight_price: Optional[float] = 0.3,		# How much price is taken into account
-				   high_price: Optional[float] = 20):		# What an "expensive" game classifies as
+				   high_price: Optional[float] = 20,		# What an "expensive" game classifies as
+				   page: Optional[int] = 1):				# Page number (1-based)
 	
 	from_date = validate_date_string(release_date_from, "release_date_from")
 	to_date = validate_date_string(release_date_to, "release_date_to")
 	
 	validate_player_count_range(min_supported_players, max_supported_players)
 	validate_date_ranges(from_date, to_date)
+	validate_pagination(page)
 	
 	games = scraper.get_games()
 	filtered_games = [game for game in games if
@@ -104,11 +116,21 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	# Sort by score (highest first)
 	filtered_games.sort(key=lambda x: x.score, reverse=True)
 	
-	# Get scraping status
+	page_size = 40
+	print(page)
+	total_pages = ceiling_division(len(filtered_games), page_size)
+	start_index = (page - 1) * page_size
+	end_index = start_index + page_size
+	paginated_games = filtered_games[start_index:end_index]
+	
 	status = scraper.get_status()
 	
 	return {
-		"games": [game.to_dict() for game in filtered_games],
+		"games": [game.to_dict() for game in paginated_games],
+		"pagination": {
+			"total_pages": total_pages,
+			"page_size": page_size,
+		},
 		"scraping_in_progress": status["scraping_in_progress"],
 		"last_scrape_hours_ago": status["last_scrape_hours_ago"]
 	}

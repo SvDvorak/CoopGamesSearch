@@ -3,13 +3,34 @@
 <head>
 	<meta charset="UTF-8">
 	<title>Co-op Games List</title>
-	<link rel="icon" type="image/svg+xml" href="Logo.svg">
+	<link rel="icon" type="image/svg+xml" href="logo.svg">
 	<script src="https://unpkg.com/vue@3"></script>
 	<style>
 		body {
 			font-family: Arial, sans-serif;
 			margin: 20px;
 			background-color: #f4f4f4;
+		}
+		input, button {
+			cursor: pointer;
+		}
+		input:disabled, button:disabled {
+			cursor: default;
+		}
+		button {
+			padding: 8px 16px;
+			border: 1px solid #ddd;
+			border-radius: 4px;
+			background-color: #fff;
+			text-decoration: none;
+			color: #333;
+		}
+		button:hover:not(:disabled) {
+			background-color: #f5f5f5;
+		}
+		button:disabled {
+			background-color: #f9f9f9;
+			color: #999;
 		}
 		.rounded-box {
 			background-color: #fff;
@@ -87,7 +108,6 @@
 			display: flex;
 			align-items: center;
 			gap: 8px;
-			cursor: pointer;
 		}
 		.loading {
 			text-align: center;
@@ -101,6 +121,20 @@
 			margin-bottom: 20px;
 			color: #c33;
 			text-align: center;
+		}
+		.pagination {
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+			margin-bottom: 20px;
+		}
+		.pagination-buttons {
+			display: flex;
+			gap: 10px;
+		}
+		.pagination-info {
+			font-size: 14px;
+			color: #666;
 		}
 	</style>
 </head>
@@ -117,9 +151,9 @@
 				<div class="filter-row">
 					<h4>Players</h4>
 					<div class="filter-inputs">
-						<input class="filter-input" type="number" v-model.number="filters.min_supported_players" @input="fetchGames" min="1" max="100">
+						<input class="filter-input" type="number" v-model.number="filters.min_supported_players" @input="updateFilters" min="1" max="100">
 						<span class="filter-to-label">to</span>
-						<input class="filter-input" type="number" v-model.number="filters.max_supported_players" @input="fetchGames" min="1" max="100">
+						<input class="filter-input" type="number" v-model.number="filters.max_supported_players" @input="updateFilters" min="1" max="100">
 					</div>
 				</div>
 
@@ -127,20 +161,20 @@
 				<div class="filter-row">
 					<h4>Release Date</h4>
 					<div class="filter-inputs">
-						<input class="filter-input" type="date" v-model="filters.release_date_from" @change="fetchGames">
+						<input class="filter-input" type="date" v-model="filters.release_date_from" @change="updateFilters">
 						<span>to</span>
-						<input class="filter-input" type="date" v-model="filters.release_date_to" @change="fetchGames">
+						<input class="filter-input" type="date" v-model="filters.release_date_to" @change="updateFilters">
 					</div>
 				</div>
 
 				<!-- Checkboxes -->
 				<div class="checkbox-group">
 					<label>
-						<input type="checkbox" v-model="filters.free_games" @change="fetchGames">
+						<input type="checkbox" v-model="filters.free_games" @change="updateFilters">
 						Include Free Games
 					</label>
 					<label>
-						<input type="checkbox" v-model="filters.unreleased_games" @change="fetchGames">
+						<input type="checkbox" v-model="filters.unreleased_games" @change="updateFilters">
 						Include Unreleased Games
 					</label>
 				</div>
@@ -165,7 +199,7 @@
 				<div class="filter-row">
 					<h4>Expensive Game Threshold</h4>
 					<div class="filter-inputs">
-						<input class="filter-input" type="number" v-model.number="filters.high_price" @input="fetchGames" min="0" step="0.01" placeholder="Price in €">
+						<input class="filter-input" type="number" v-model.number="filters.high_price" @input="updateFilters" min="0" step="0.01" placeholder="Price in €">
 						<span>€</span>
 					</div>
 				</div>
@@ -182,6 +216,28 @@
 			{{ error }}
 		</div>
 
+		<!-- Pagination controls -->
+		<div v-if="!loading && !error && games.length > 0" class="rounded-box pagination">
+			<div class="pagination-buttons">
+				<button 
+					class="pagination-button" 
+					:disabled="pagination.current_page <= 1"
+					@click="goToPage(pagination.current_page - 1)">
+					Previous
+				</button>
+				<button 
+					class="pagination-button" 
+					:disabled="pagination.current_page >= pagination.total_pages"
+					@click="goToPage(pagination.current_page + 1)">
+					Next
+				</button>
+			</div>
+			<div class="pagination-info">
+				Page {{ pagination.current_page }} of {{ pagination.total_pages }} 
+				({{ pagination.total_games }} games total)
+			</div>
+		</div>
+
 		<!-- Games list -->
 		<div class="rounded-box game" v-for="(g, index) in games" :key="`game-${g.steam_id || index}`">
 			<img :src="g.header_image" :alt="'Header for ' + g.title">
@@ -194,7 +250,7 @@
 				<strong>Release Date:</strong> {{ g.is_released ? formatDate(g.release_date) : 'Coming soon' }}<br>
 				<strong>Online Players:</strong> {{ g.online_players }}
 			</p>
-			<p>{{ g.short_description }}</p>
+			<p>{{ decodeHtml(g.short_description) }}</p>
 			<div class="links">
 				<a :href="g.steam_url" target="_blank">Steam Page</a>
 				<a :href="g.cooptimus_url" target="_blank">Co-Optimus Page</a>
@@ -215,6 +271,11 @@
 					games: [],
 					loading: false,
 					error: null,
+					pagination: {
+						current_page: 1,
+						total_pages: 1,
+						page_size: 1, // Will be updated from API response
+					},
 					filters: {
 						min_supported_players: 1,
 						max_supported_players: 100,
@@ -236,18 +297,20 @@
 					this.loading = true;
 					this.error = null; // Clear previous errors
 					try {
-						const params = new URLSearchParams(this.filters);
-						const response = await fetch(`/games?${params}`);
+						search_params = this.filters;
+						search_params.page = this.pagination.current_page;
+						const response = await fetch(`/games?${new URLSearchParams(search_params)}`);
 						
 						if (!response.ok) {
 							// Handle HTTP error responses
 							const errorData = await response.json();
 							throw new Error(errorData.detail || `Server error: ${response.status}`);
 						}
-						
-						const data = await response.json();
-						this.games = data.games;
-					} catch (error) {
+									const data = await response.json();
+					this.games = data.games;
+					this.pagination.total_pages = data.pagination.total_pages;
+					this.pagination.page_size = data.pagination.page_size;
+				} catch (error) {
 						console.error('Error fetching games:', error);
 						this.error = error.message || 'Failed to load games. Please try again.';
 						this.games = []; // Clear games on error
@@ -264,12 +327,28 @@
 						this.filters.weight_price = parseFloat(this.filters.weight_price);
 						this.filters.weight_rating = 1 - this.filters.weight_price;
 					}
-					this.fetchGames();
+					this.updateFilters();
 				},
 				formatDate(dateStr) {
 					const options = { year: 'numeric', month: 'short', day: '2-digit' };
 					return new Date(dateStr).toLocaleDateString(undefined, options);
-				}
+				},
+				goToPage(page) {
+					if (page >= 1 && page <= this.pagination.total_pages) {
+						this.pagination.current_page = page;
+						this.fetchGames();
+					}
+				},
+				updateFilters() {
+					// Reset to page 1 when filters change
+					this.pagination.current_page = 1;
+					this.fetchGames();
+				},
+				decodeHtml(html) {
+					const txt = document.createElement('textarea');
+					txt.innerHTML = html;
+					return txt.value;
+				},
 			}
 		}).mount('#app');
 	</script>

@@ -108,11 +108,7 @@ class Scraper:
 			print(f"Year: {year}, Games found: {len(yearly)}")
 			if len(yearly) == 40:
 				print("Found more than 40 games, scraping by month...")
-				yearly = []
-				for month in range(1, 13):
-					monthly = self.get_cooptimus_games_data({"releaseyear": year, "releasemonth": month})
-					print(f"Year: {year}, Month: {month}, Games found: {len(monthly)}")
-					yearly.extend(monthly)
+				yearly.extend(self.fetch_all_coop_games_for_year(year))
 			
 			print(f"Total games for {year}: {len(yearly)}")
 			all_games.extend(yearly)
@@ -120,8 +116,17 @@ class Scraper:
 		print(len(all_games))
 		return all_games
 	
+	def fetch_all_coop_games_for_year(self, year):
+		yearly = []
+		for month in range(1, 13):
+			monthly = self.get_cooptimus_games_data({"releaseyear": year, "releasemonth": month})
+			print(f"Year: {year}, Month: {month}, Games found: {len(monthly)}")
+			yearly.extend(monthly)
+		return yearly
+	
 	def fetch_updated_since_last(self):
-		return self.get_cooptimus_games_data({"updatedsince": self.last_scrape_time.strftime('%Y-%m-%dT%H:%M:%S')})
+		#return self.get_cooptimus_games_data({"updatedsince": self.last_scrape_time.strftime('%Y-%m-%dT%H:%M:%S')})
+		return self.fetch_all_coop_games_for_year(datetime.now().year)
 
 	def get_cooptimus_games_data(self, params):
 		url = "https://api.co-optimus.com/games.php"
