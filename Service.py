@@ -81,7 +81,7 @@ def validate_pagination(page):
 		)
 
 def ceiling_division(a, b):
-    return -(a // -b)
+	return -(a // -b)
 
 def matches_players(game, min_players, max_players, player_type):
 	player_type = player_type.lower()
@@ -91,6 +91,16 @@ def matches_players(game, min_players, max_players, player_type):
 		return game.lan_players >= min_players and game.lan_players <= max_players
 	else:
 		return game.online_players >= min_players and game.online_players <= max_players
+
+def matches_tags(game, search_tags):
+	if not search_tags:
+		return True
+	
+	if not game.tags:
+		return False
+	
+	game_tags_lower = [tag.lower() for tag in game.tags]
+	return all(tag in game_tags_lower for tag in search_tags)
 
 @app.get("/games")
 async def get_games(min_supported_players: Optional[int] = 1, 
@@ -104,6 +114,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 				   weight_price: Optional[float] = 0.3,									# How much price is taken into account
 				   high_price: Optional[float] = 20,									# What an "expensive" game classifies as
 				   min_reviews: Optional[int] = 0,										# Minimum number of reviews required
+				   tags: Optional[str] = None,											# Pipe-separated list of tags
 				   page: Optional[int] = 1):											# Page number (1-based)
 	
 	from_date = validate_date_string(release_date_from, "release_date_from")
@@ -112,6 +123,10 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	validate_player_count_range(min_supported_players, max_supported_players)
 	validate_date_ranges(from_date, to_date)
 	validate_pagination(page)
+
+	search_tags = []
+	if tags:
+		search_tags = [tag.strip().lower() for tag in tags.split('|') if tag.strip()]
 	
 	games = scraper.get_games()
 	filtered_games = [game for game in games if
@@ -119,7 +134,8 @@ async def get_games(min_supported_players: Optional[int] = 1,
 					   (free_games or game.price > 0) and
 					   (unreleased_games or game.is_released) and
 					   (game.number_of_reviews >= min_reviews) and
-					   is_within_date_range(game, from_date, to_date))]
+						is_within_date_range(game, from_date, to_date) and
+					   matches_tags(game, search_tags))]
 
 	for game in filtered_games:
 		game.compute_score(weight_rating, weight_price, high_price)
