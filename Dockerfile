@@ -11,7 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application files
 COPY Service.py .
+COPY Scraper.py .
 COPY Game.py .
+COPY GameStorage.py .
 COPY FilterPage.html .
 COPY Logo.svg .
 COPY games.json .
