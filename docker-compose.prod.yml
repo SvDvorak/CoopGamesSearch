@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   coop-games:
-    container_name: coop-games-app
+    container_name: coop_games
     build:
       context: .
       args:

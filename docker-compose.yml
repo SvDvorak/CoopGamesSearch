@@ -2,8 +2,8 @@ version: '3.8'
 
 services:
   coop-games:
+    container_name: coop_games
     build: .
     ports:
-      - "8000:8000"
+      - "80:80"
     restart: unless-stopped
-    container_name: coop-games-app
