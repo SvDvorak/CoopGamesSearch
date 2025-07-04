@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  coop-games:
+    container_name: coop-games-app
+    build:
+      context: .
+      args:
+        - NODE_ENV=production
+    image: coop-games
+    volumes:
+      - ./games.json:/app/games.json
+
+# Uses external network with routing
+networks:
+  default:
+    external:
+      name: production
