@@ -154,6 +154,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 		"pagination": {
 			"total_pages": total_pages,
 			"page_size": page_size,
+			"total_games": len(filtered_games),
 		},
 		"scraping_in_progress": status["scraping_in_progress"],
 		"last_scrape_hours_ago": status["last_scrape_hours_ago"]
