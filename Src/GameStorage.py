@@ -1,13 +1,12 @@
 import json
 from Game import Game
+from Country import Country
 
-def load_games_from_file(games_file="games.json"):
-	"""Load games from JSON file"""
+def load_from_file(file_path):
 	try:
-		with open(games_file, "r", encoding="utf-8") as f:
+		with open(file_path, "r", encoding="utf-8") as f:
 			data = json.load(f)
-		print(f"\nLoaded {len(data)} games from {games_file}")
-		return [Game.from_dict(item) for item in data]
+		return data
 	except FileNotFoundError:
 		print(f"\n{games_file} not found. Starting with empty games list.")
 		return []
@@ -15,8 +14,16 @@ def load_games_from_file(games_file="games.json"):
 		print(f"\nError loading games from {games_file}: {e}")
 		return []
 
+def load_games_from_file(games_file="games.json"):
+	data = load_from_file(games_file)
+	print(f"\nLoaded {len(data)} games from {games_file}")
+	return [Game.from_dict(item) for item in data]
+
 def save_games_to_file(games, games_file="games.json"):
-	"""Save games to JSON file"""
 	with open(games_file, "w", encoding="utf-8") as f:
 		json.dump([g.to_dict() for g in games], f, ensure_ascii=False, indent=2)
 	print(f"\nSaved {len(games)} games to {games_file}")
+
+def load_countries_from_file(countries_file="countries.json"):
+	data = load_from_file(countries_file)
+	return [Country(item["name"], item["code"]) for item in data]

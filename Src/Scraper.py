@@ -1,19 +1,19 @@
 import json
 import requests
+import time
 from bs4 import BeautifulSoup
 from datetime import datetime
 from Game import Game
+from Price import Price
+from GameStorage import load_countries_from_file
 
 class Scraper:
 	def __init__(self):
 		self.scraping_state = "None"
 		self.scraping_start_year = 1988
 		self.scraping_end_year = datetime.now().year 
-		
-		# Scraping configuration
-		self.min_supported_players = 2
-		self.max_supported_players = 100
-		self.country_code = "SE"
+		self.country_codes = load_countries_from_file("countries.json")
+		self.steam_delay = 2  # Delay between Steam API requests
 
 	def scrape_games(self, last_scrape_time):
 		self.last_scrape_time = last_scrape_time
@@ -30,15 +30,15 @@ class Scraper:
 				count -= 1
 				continue
 			self.add_steam_data(game)
-			if game.is_delisted:
+			if game.is_removed:
 				count -= 1
 				continue
 			self.add_rating(game)
 			self.add_tags(game)
 			i += 1
-			time.sleep(2)  # Avoid hitting Steam API too hard
+			time.sleep(self.steam_delay)
 
-		games = list(filter(lambda x: not x.is_delisted, games))
+		games = list(filter(lambda x: not x.is_removed, games))
 
 		return games
 	
@@ -114,22 +114,23 @@ class Scraper:
 		if game.steam_id in invalid_steam_id_mappings:
 			game.steam_id = invalid_steam_id_mappings[game.steam_id]
 		if game.steam_id in ignored_steam_ids:
-			game.is_delisted = True
+			game.is_removed = True
 			return False
 		return True
 
 	def add_steam_data(self, game):
-		url = f"https://store.steampowered.com/api/appdetails?appids={game.steam_id}&cc={self.country_code}"
+		url = f"https://store.steampowered.com/api/appdetails"
+		params = {"appids": game.steam_id}
 		response = self.try_request(url)
 
 		game_response = {}
 		try:
 			game_response = response.json()[str(game.steam_id)]
 			if not game_response["success"]:
-				raise Exception("Delisted game")
+				raise Exception("Removed game")
 		except:
 			print(f"{game.title} ({game.steam_id}), no data found")
-			game.is_delisted = True
+			game.is_removed = True
 			return
 
 		data = game_response["data"]
@@ -144,11 +145,6 @@ class Scraper:
 		except:
 			game.is_released = False
 
-		try:
-			game.price = data["price_overview"]["final"]
-		except:
-			game.price = 0
-
 	def add_rating(self, game):
 		url = f"https://store.steampowered.com/appreviews/{game.steam_id}"
 		params = {"json": 1, "num_per_page": 1, "language": "all", "purchase_type": "all"}
@@ -162,12 +158,60 @@ class Scraper:
 
 	def add_tags(self, game):
 		"""Add tags to game via SteamSpy"""
-		response = self.try_request(f"https://steamspy.com/api.php?request=appdetails&appid={game.steam_id}")
+		params = {"request": "appdetails", "appid": game.steam_id}
+		response = self.try_request(f"https://steamspy.com/api.php", params=params)
 		data = response.json()
 		try:
 			game.tags = list(data.get("tags", {}).keys())
 		except:
 			return
+
+	def scrape_prices(self, games):
+		game_ids = [str(game.steam_id) for game in games]
+		batch_size = 200
+		# TMP
+		game_ids = game_ids[0:batch_size]
+
+		print(f"Fetching prices for {len(game_ids)} games")
+		for i in range(0, len(game_ids), batch_size):
+			batch = game_ids[i:i+batch_size]
+			batch_games = games[i:i+batch_size]
+			game_ids_str = ",".join(batch)
+
+			for country in self.country_codes:
+				url = f"https://store.steampowered.com/api/appdetails"
+				params = {"appids": game_ids_str, "cc": country.code, "filters": "price_overview"}
+				game_data = self.try_request(url, params=params).json()
+				print(f"{i} -> {i+batch_size}: prices for {country.name} ({country.code}) fetched")
+				for game in batch_games:
+					game_response = game_data[str(game.steam_id)]
+					game.delisted[country.code] = False
+					
+					if not game_response.get("success", False):
+						# If we can't get the game at all, assume it's delisted in this country
+						game.delisted[country.code] = True
+						continue
+					
+					# TODO remove
+					if "data" not in game_response:
+						print(f"!!!!! No data field for {game.title} ({game.steam_id}) in {country.code}")
+						continue
+
+					data = game_response["data"]
+
+					if "price_overview" not in data:
+						# No price found, that means it's free or delisted
+						game.prices[country.code] = Price(0, 0)
+						continue
+
+					price_info = data["price_overview"]
+					game.prices[country.code] = Price(
+						price_info["initial"],
+						price_info["final"])
+
+				time.sleep(self.steam_delay)
+
+		return games
 		
 	def try_request(self, url, params=None, retries=15):
 		for attempt in range(retries):

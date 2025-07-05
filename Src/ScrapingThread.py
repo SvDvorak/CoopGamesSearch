@@ -47,9 +47,13 @@ class ScrapingThread:
 			
 			# Run the scraping (this takes hours)
 			last_time = self.last_scrape_time if len(self.games) == 0 else None
-			new_games = self.scraper.scrape_games(self.last_scrape_time)
+			#new_games = self.scraper.scrape_games(self.last_scrape_time)
+			new_games = []
 			
-			merged_games = self.merge_games(new_games)
+			merged_games = self.merge_games([])
+
+			merged_games = self.scraper.scrape_prices(merged_games)
+
 			save_games_to_file(merged_games, self.games_file)
 			
 			self.set_games(merged_games)

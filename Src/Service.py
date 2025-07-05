@@ -113,7 +113,8 @@ async def get_games(min_supported_players: Optional[int] = 1,
 				   high_price: Optional[float] = 20,									# What an "expensive" game classifies as
 				   min_reviews: Optional[int] = 0,										# Minimum number of reviews required
 				   tags: Optional[str] = None,											# Pipe-separated list of tags
-				   page: Optional[int] = 1):											# Page number (1-based)
+				   page: Optional[int] = 1,												# Page number (1-based)
+				   country_code: Optional[str] = "SE"):									
 	
 	from_date = validate_date_string(release_date_from, "release_date_from")
 	to_date = validate_date_string(release_date_to, "release_date_to")
@@ -129,14 +130,14 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	games = scrapingThread.get_games()
 	filtered_games = [game for game in games if
 					  (matches_players(game, min_supported_players, max_supported_players, player_type) and
-					   (free_games or game.price > 0) and
+					   (free_games or game.get_price(country_code) > 0) and
 					   (unreleased_games or game.is_released) and
 					   (game.number_of_reviews >= min_reviews) and
 						is_within_date_range(game, from_date, to_date) and
 					   matches_tags(game, search_tags))]
 
 	for game in filtered_games:
-		game.compute_score(weight_rating, weight_price, high_price)
+		game.compute_score(weight_rating, weight_price, high_price, country_code)
 	
 	# Sort by score (highest first)
 	filtered_games.sort(key=lambda x: x.score, reverse=True)
