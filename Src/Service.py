@@ -5,8 +5,8 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from Game import Game
 from datetime import datetime, date
-from GameStorage import load_games_from_file
 from Scraper import Scraper
+from ScrapingThread import ScrapingThread
 
 app = FastAPI()
 
@@ -22,16 +22,14 @@ app.add_middleware(
 games_file = "games.json"
 allow_manual_scrape = True # If True, allows manual scraping via API endpoint
 
-# Initialize scraper
-scraper = Scraper(games_file, scrape_interval_hours=12)
+scraper = Scraper()
+scrapingThread = ScrapingThread(scraper, games_file, scrape_interval_hours=12)
 
 # Serve static files (HTML, CSS, JS)
 app.mount("/static", StaticFiles(directory="."), name="static")
 
-# Load games on startup and start continuous scraping
-initial_games = load_games_from_file(games_file)
-scraper.set_games(initial_games)
-scraper.start_continuous_scraping()
+scrapingThread.load_games()
+scrapingThread.start_continuous_scraping()
 
 def is_within_date_range(game, from_date, to_date):
 	if not game.release_date:
@@ -128,7 +126,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	if tags:
 		search_tags = [tag.strip().lower() for tag in tags.split('|') if tag.strip()]
 	
-	games = scraper.get_games()
+	games = scrapingThread.get_games()
 	filtered_games = [game for game in games if
 					  (matches_players(game, min_supported_players, max_supported_players, player_type) and
 					   (free_games or game.price > 0) and
@@ -149,7 +147,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	end_index = start_index + page_size
 	paginated_games = filtered_games[start_index:end_index]
 	
-	status = scraper.get_status()
+	status = scrapingThread.get_status()
 	
 	return {
 		"games": [game.to_dict() for game in paginated_games],
@@ -163,14 +161,12 @@ async def get_games(min_supported_players: Optional[int] = 1,
 
 @app.get("/scrape/status")
 async def get_scrape_status():
-	"""Get current scraping status"""
-	return scraper.get_status()
+	return scrapingThread.get_status()
 
 if allow_manual_scrape:
 	@app.post("/scrape/start")
 	async def start_manual_scrape():
-		"""Manually trigger a scraping operation"""
-		success, message = scraper.manual_scrape()
+		success, message = scrapingThread.manual_scrape()
 		
 		if not success:
 			raise HTTPException(
