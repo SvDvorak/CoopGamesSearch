@@ -9,7 +9,7 @@ services:
         - NODE_ENV=production
     image: coop-games
     volumes:
-      - ./games.json:/app/games.json
+      - ./Src/games.json:/app/games.json
 
 # Uses external network with routing
 networks:
