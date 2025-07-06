@@ -8,7 +8,7 @@ def load_from_file(file_path):
 			data = json.load(f)
 		return data
 	except FileNotFoundError:
-		print(f"\n{games_file} not found. Starting with empty games list.")
+		print(f"\n{file_path} not found. Starting with empty games list.")
 		return []
 	except Exception as e:
 		print(f"\nError loading games from {games_file}: {e}")
