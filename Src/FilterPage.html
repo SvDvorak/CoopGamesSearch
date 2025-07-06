@@ -3,7 +3,7 @@
 <head>
 	<meta charset="UTF-8">
 	<title>Co-op Games List</title>
-	<link rel="icon" type="image/svg+xml" href="logo.svg">
+	<link rel="icon" type="image/svg+xml" href="logo">
 	<script src="https://unpkg.com/vue@3"></script>
 	<style>
 		body {
@@ -80,6 +80,9 @@
 		.game-info p {
 			margin: 0;
 		}
+		.game-info span {
+			color: rgb(150, 16, 16);
+		}
 		.links {
 			margin-bottom: 1rem;
 		}
@@ -133,6 +136,9 @@
 		}
 		.filter-inputs input {
 			width: 8rem;
+		}
+		.filter-inputs select {
+			width: 12rem;
 		}
 		.filter-inputs input[type="range"] {
 			width: 13rem;
@@ -191,6 +197,18 @@
 			<div class="rounded-box filters">
 				<h3>Filters</h3>
 				
+				<!-- Country row -->
+				<div class="filter-row">
+					<h4>Country</h4>
+					<div class="filter-inputs">
+						<select class="filter-input" v-model="filters.country_code" @change="updateFilters">
+							<option v-for="country in countries" :key="country.code" :value="country.code">
+								{{ country.name }}
+							</option>
+						</select>
+					</div>
+				</div>
+
 				<!-- Player count row -->
 				<div class="filter-row">
 					<h4>Players</h4>
@@ -317,16 +335,16 @@
 			<h2>{{ g.title }}</h2>
 			<div class="game-info">
 				<p>
-					<strong>Score:</strong> {{ g.score.toFixed(3) }}<br>
-					<strong>Price:</strong> {{ g.price > 0 ? (g.price / 100).toFixed(2) + '€' : 'Free' }}<br>
-					<strong>Steam Rating:</strong> {{ g.steam_rating > 0 ? (g.steam_rating * 100).toFixed(1) + '%' : 'N/A' }}
+					<strong>Score: </strong>{{ g.score.toFixed(3) }}<br>
+					<strong>Price: </strong>{{ getPrice(g) }} <span class="sale">{{ getSale(g) }}</span><br>
+					<strong>Steam Rating: </strong>{{ g.steam_rating > 0 ? (g.steam_rating * 100).toFixed(1) + '%' : 'N/A' }}
 					({{ g.number_of_reviews }} reviews)<br>
-					<strong>Release Date:</strong> {{ g.is_released ? formatDate(g.release_date) : 'Coming soon' }}<br>
+					<strong>Release Date: </strong>{{ g.is_released ? formatDate(g.release_date) : 'Coming soon' }}<br>
 				</p>
 				<p>
-					<strong>Couch Players:</strong> {{ g.couch_players }}<br>
-					<strong>LAN Players:</strong> {{ g.lan_players }}<br>
-					<strong>Online Players:</strong> {{ g.online_players }}<br>
+					<strong>Couch Players: </strong>{{ g.couch_players }}<br>
+					<strong>LAN Players: </strong>{{ g.lan_players }}<br>
+					<strong>Online Players: </strong>{{ g.online_players }}<br>
 				</p>
 			</div>
 			<p>{{ decodeHtml(g.short_description) }}</p>
@@ -355,6 +373,7 @@
 					debounceTimer: null,
 					debounceTime: 300,
 					tagInput: '',
+					countries: [],
 					pagination: {
 						current_page: 1,
 						total_pages: 1,
@@ -362,6 +381,7 @@
 						total_games: 0,
 					},
 					filters: {
+						country_code: 'SE',
 						min_supported_players: 1,
 						max_supported_players: 100,
 						player_type: 'online',
@@ -377,10 +397,20 @@
 					},
 				};
 			},
-			mounted() {
-				this.fetchGames();
+			async mounted() {
+				await this.loadCountries();
+				await this.fetchGames();
 			},
 			methods: {
+				async loadCountries() {
+					try {
+						const response = await fetch('/countries');
+						this.countries = await response.json();
+						this.countries.sort((a, b) => a.name.localeCompare(b.name));
+					} catch (error) {
+						this.error = error.message || 'Failed to load countries. Please reload page.';
+					}
+				},
 				async fetchGames() {
 					if(!this.validFilters())
 						return;
@@ -396,10 +426,10 @@
 						const response = await fetch(`/games?${new URLSearchParams(search_params)}`);
 						
 						if (!response.ok) {
-							// Handle HTTP error responses
 							const errorData = await response.json();
 							throw new Error(errorData.detail || `Server error: ${response.status}`);
 						}
+
 						const data = await response.json();
 						this.games = data.games;
 						this.pagination.total_pages = data.pagination.total_pages;
@@ -433,6 +463,29 @@
 				formatDate(dateStr) {
 					const options = { year: 'numeric', month: 'short', day: '2-digit' };
 					return new Date(dateStr).toLocaleDateString(undefined, options);
+				},
+				getPrice(game) {
+					if(game.price == null || game.price.final <= 0)
+						return 'Free';
+
+					price = (game.price.final / 100).toFixed(2);
+					return this.getCurrencyPrice(price);
+				},
+				getCurrencyPrice(price) {
+					currency = this.countries.find(c => c.code === this.filters.country_code)['currency'];
+					if(currency === "EUR")
+						return price + '€';
+					else if(currency === "USD")
+						return '$' + price;
+
+					return `${price} ${currency}`;
+				},
+				getSale(game) {
+					if (game.price == null || game.price.final === game.price.initial)
+						return '';
+
+					const salePercentage = Math.round((1 - game.price.final / game.price.initial) * 100);
+					return `(${salePercentage}% off)`;
 				},
 				goToPage(page) {
 					if (page >= 1 && page <= this.pagination.total_pages) {

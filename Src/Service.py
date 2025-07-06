@@ -78,6 +78,14 @@ def validate_pagination(page):
 			detail="Page number must be greater than 0"
 		)
 
+def validate_country_code(country_code):
+	# TODO This does not actually validate against a list of countries
+	if not country_code or len(country_code) != 2:
+		raise HTTPException(
+			status_code=400,
+			detail="Invalid country code. Must be a 2-letter ISO code."
+		)
+
 def ceiling_division(a, b):
 	return -(a // -b)
 
@@ -122,6 +130,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	validate_player_count_range(min_supported_players, max_supported_players)
 	validate_date_ranges(from_date, to_date)
 	validate_pagination(page)
+	validate_country_code(country_code)
 
 	search_tags = []
 	if tags:
@@ -129,12 +138,13 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	
 	games = scrapingThread.get_games()
 	filtered_games = [game for game in games if
-					  (matches_players(game, min_supported_players, max_supported_players, player_type) and
-					   (free_games or game.get_price(country_code) > 0) and
-					   (unreleased_games or game.is_released) and
-					   (game.number_of_reviews >= min_reviews) and
-						is_within_date_range(game, from_date, to_date) and
-					   matches_tags(game, search_tags))]
+					game.is_listed_in_country(country_code) and
+					(matches_players(game, min_supported_players, max_supported_players, player_type) and
+					(free_games or game.get_price(country_code) > 0) and
+					(unreleased_games or game.is_released) and
+					(game.number_of_reviews >= min_reviews) and
+					is_within_date_range(game, from_date, to_date) and
+					matches_tags(game, search_tags))]
 
 	for game in filtered_games:
 		game.compute_score(weight_rating, weight_price, high_price, country_code)
@@ -151,7 +161,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	status = scrapingThread.get_status()
 	
 	return {
-		"games": [game.to_dict() for game in paginated_games],
+		"games": [game.sendable_dict(country_code) for game in paginated_games],
 		"pagination": {
 			"total_pages": total_pages,
 			"page_size": page_size,
@@ -181,9 +191,13 @@ if allow_manual_scrape:
 			"scraping_in_progress": True
 		}
 
-@app.get("/logo.svg")
+@app.get("/logo")
 async def serve_logo():
 	return FileResponse("Logo.svg")
+
+@app.get("/countries")
+async def serve_logo():
+	return FileResponse("Countries.json")
 
 @app.get("/")
 async def serve_frontend():

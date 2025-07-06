@@ -46,11 +46,10 @@ class ScrapingThread:
 			print("\n=== Starting background scraping ===")
 			
 			# Run the scraping (this takes hours)
-			last_time = self.last_scrape_time if len(self.games) == 0 else None
-			#new_games = self.scraper.scrape_games(self.last_scrape_time)
-			new_games = []
+			last_time = self.last_scrape_time if len(self.games) > 0 else None
+			new_games = self.scraper.scrape_games(last_time)
 			
-			merged_games = self.merge_games([])
+			merged_games = self.merge_games(new_games)
 
 			merged_games = self.scraper.scrape_prices(merged_games)
 
@@ -62,7 +61,7 @@ class ScrapingThread:
 			print(f"\n=== Background scraping completed. Found {len(new_games)} games ===\n")
 		finally:
 			self.scraping_in_progress = False
-			self.scraping_state = "None"
+			self.scraper.scraping_state = "None"
 
 	def merge_games(self, new_games):
 		existing_games_dict = {game.steam_id: game for game in self.games}

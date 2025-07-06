@@ -36,6 +36,11 @@ class Game:
 			return self.prices[country_code].final
 		else:
 			return 0
+		
+	def is_listed_in_country(self, country_code):
+		if country_code in self.delisted:
+			return False
+		return True
 	
 	def to_dict(self):
 		return {
@@ -56,6 +61,14 @@ class Game:
 			"short_description": self.short_description,
 			"tags": self.tags,
 		}
+	
+	def sendable_dict(self, country_code):
+		sendable = self.to_dict()
+		price = self.prices[country_code] if country_code in self.prices else None
+		sendable.pop("prices", None)
+		sendable.pop("delisted", None)
+		sendable["price"] = price.to_dict() if price else None
+		return sendable
 
 	@classmethod
 	def from_dict(cls, data):

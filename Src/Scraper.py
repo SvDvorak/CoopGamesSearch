@@ -44,7 +44,7 @@ class Scraper:
 	
 	def fetch_coop_games(self):
 		all_games = []
-		if self.last_scrape_time is not None:
+		if self.last_scrape_time is None:
 			all_games = self.fetch_all_coop_games()
 		else:
 			all_games = self.fetch_updated_since_last()
@@ -82,7 +82,7 @@ class Scraper:
 			print(f"Total games for {year}: {len(yearly)}")
 			all_games.extend(yearly)
 
-		print(len(all_games))
+		print(f"Found {len(all_games)} games")
 		return all_games
 	
 	def fetch_all_coop_games_for_year(self, year):
@@ -111,9 +111,9 @@ class Scraper:
 		return list(filter(lambda game: game.steam_id not in seen_steam_ids and not seen_steam_ids.add(game.steam_id), games))
 	
 	def validate_steam_id(self, game):
-		if game.steam_id in invalid_steam_id_mappings:
-			game.steam_id = invalid_steam_id_mappings[game.steam_id]
-		if game.steam_id in ignored_steam_ids:
+		if game.steam_id in self.invalid_steam_id_mappings:
+			game.steam_id = self.invalid_steam_id_mappings[game.steam_id]
+		if game.steam_id in self.ignored_steam_ids:
 			game.is_removed = True
 			return False
 		return True
@@ -121,7 +121,7 @@ class Scraper:
 	def add_steam_data(self, game):
 		url = f"https://store.steampowered.com/api/appdetails"
 		params = {"appids": game.steam_id}
-		response = self.try_request(url)
+		response = self.try_request(url, params)
 
 		game_response = {}
 		try:
@@ -169,11 +169,10 @@ class Scraper:
 	def scrape_prices(self, games):
 		game_ids = [str(game.steam_id) for game in games]
 		batch_size = 200
-		# TMP
-		game_ids = game_ids[0:batch_size]
 
 		print(f"Fetching prices for {len(game_ids)} games")
 		for i in range(0, len(game_ids), batch_size):
+			self.scraping_state = f"Getting prices ({i}/{len(game_ids)})"
 			batch = game_ids[i:i+batch_size]
 			batch_games = games[i:i+batch_size]
 			game_ids_str = ",".join(batch)
@@ -182,7 +181,6 @@ class Scraper:
 				url = f"https://store.steampowered.com/api/appdetails"
 				params = {"appids": game_ids_str, "cc": country.code, "filters": "price_overview"}
 				game_data = self.try_request(url, params=params).json()
-				print(f"{i} -> {i+batch_size}: prices for {country.name} ({country.code}) fetched")
 				for game in batch_games:
 					game_response = game_data[str(game.steam_id)]
 					game.delisted[country.code] = False
@@ -200,8 +198,6 @@ class Scraper:
 					data = game_response["data"]
 
 					if "price_overview" not in data:
-						# No price found, that means it's free or delisted
-						game.prices[country.code] = Price(0, 0)
 						continue
 
 					price_info = data["price_overview"]
@@ -224,44 +220,44 @@ class Scraper:
 				time.sleep(2 ** attempt)
 		raise Exception(f"Failed to fetch {url} after {retries} attempts")
 
-invalid_steam_id_mappings = {
-	"8110": "8100",
-	"12799": "12790",
-	"10199": "1962660",
-	"12819": "12810",
-	"48129": "965320",
-	"22700": "225640",
-	"8989": "8980",
-	"12219": "12210",
-	"1259": "1250",
-	"206940": "321800",
-	"42749": "42700",
-	"271290": "705040",
-	"212180": "1263550",
-	"22359": "22350",
-	"362003": "3240220",
-	"41010": "41014",
-	"32690": "32770",
-	"21019": "21010",
-	"35709": "35700",
-	"11202": "11200",
-	"204140": "209360",
-}
+	invalid_steam_id_mappings = {
+		"8110": "8100",
+		"12799": "12790",
+		"10199": "1962660",
+		"12819": "12810",
+		"48129": "965320",
+		"22700": "225640",
+		"8989": "8980",
+		"12219": "12210",
+		"1259": "1250",
+		"206940": "321800",
+		"42749": "42700",
+		"271290": "705040",
+		"212180": "1263550",
+		"22359": "22350",
+		"362003": "3240220",
+		"41010": "41014",
+		"32690": "32770",
+		"21019": "21010",
+		"35709": "35700",
+		"11202": "11200",
+		"204140": "209360",
+	}
 
-ignored_steam_ids = {
-	"38209",
-	"23100",
-	"33420",
-	"235760",
-	"240380",
-	"10530",
-	"20590",
-	"463680",
-	"206950",
-	"9930",
-	"1501980",
-	"32700",
-	"21649",
-	"1368440",
-	"9990",
-}
+	ignored_steam_ids = {
+		"38209",
+		"23100",
+		"33420",
+		"235760",
+		"240380",
+		"10530",
+		"20590",
+		"463680",
+		"206950",
+		"9930",
+		"1501980",
+		"32700",
+		"21649",
+		"1368440",
+		"9990",
+	}

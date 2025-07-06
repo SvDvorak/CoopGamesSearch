@@ -26,4 +26,4 @@ def save_games_to_file(games, games_file="games.json"):
 
 def load_countries_from_file(countries_file="countries.json"):
 	data = load_from_file(countries_file)
-	return [Country(item["name"], item["code"]) for item in data]
+	return [Country(item["name"], item["code"], item["currency"]) for item in data]
