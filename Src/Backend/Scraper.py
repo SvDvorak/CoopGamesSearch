@@ -12,7 +12,7 @@ class Scraper:
 		self.scraping_state = "None"
 		self.scraping_start_year = 1988
 		self.scraping_end_year = datetime.now().year 
-		self.country_codes = load_countries_from_file("countries.json")
+		self.country_codes = load_countries_from_file("../Countries.json")
 		self.steam_delay = 2  # Delay between Steam API requests
 
 	def scrape_games(self, last_scrape_time):

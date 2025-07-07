@@ -1,6 +1,6 @@
 
 Unused/
-Src/games.json
+Src/Backend/games.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

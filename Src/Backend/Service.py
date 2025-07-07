@@ -197,12 +197,12 @@ if allow_manual_scrape:
 
 @app.get("/logo")
 async def serve_logo():
-	return FileResponse("Logo.svg")
+	return FileResponse("../Frontend/Logo.svg")
 
 @app.get("/countries")
 async def serve_logo():
-	return FileResponse("Countries.json")
+	return FileResponse("../Countries.json")
 
 @app.get("/")
 async def serve_frontend():
-	return FileResponse("FilterPage.html")
+	return FileResponse("../Frontend/FilterPage.html")
