@@ -1,371 +1,302 @@
-<template>
-    <!-- Filter Controls -->
-    <div class="controls">
-        <div class="rounded-box filters">
-            <h3>Filters</h3>
-            
-            <!-- Country row -->
-            <div class="filter-row">
-                <h4>Country (for pricing)</h4>
-                <div class="filter-inputs">
-                    <select class="filter-input" v-model="filters.country_code" @change="updateFilters">
-                        <option v-for="country in countries" :key="country.code" :value="country.code">
-                            {{ country.name }}
-                        </option>
-                    </select>
-                </div>
-            </div>
+<script setup lang="ts">
 
-            <!-- Player count row -->
-            <div class="filter-row">
-                <h4>Players</h4>
-                <div class="filter-inputs">
-                    <input class="filter-input" type="number" v-model.number="filters.min_supported_players" @input="updateFilters" min="1" max="100">
-                    <span class="filter-to-label">to</span>
-                    <input class="filter-input" type="number" v-model.number="filters.max_supported_players" @input="updateFilters" min="1" max="100">
-                    <select class="filter-input" v-model="filters.player_type" @change="updateFilters">
-                        <option value="couch">Couch</option>
-                        <option value="lan">LAN</option>
-                        <option value="online">Online</option>
-                    </select>
-                </div>
-            </div>
+import { ref, reactive, onMounted } from 'vue'
+import Filters from './Filters.vue'
+import Scoring from './Scoring.vue'
 
-            <!-- Date range row -->
-            <div class="filter-row">
-                <h4>Release Date</h4>
-                <div class="filter-inputs">
-                    <input class="filter-input" type="date" v-model="filters.release_date_from" @change="updateFilters">
-                    <span>to</span>
-                    <input class="filter-input" type="date" v-model="filters.release_date_to" @change="updateFilters">
-                </div>
-            </div>
+interface Country {
+    code: string
+    name: string
+    currency: string
+}
 
-            <!-- Minimum reviews row -->
-            <div class="filter-row">
-                <h4>Minimum Reviews</h4>
-                <div class="filter-inputs">
-                    <input class="filter-input" type="number" v-model.number="filters.min_reviews" @input="updateFilters" min="0">
-                </div>
-            </div>
+interface Pagination {
+    current_page: number
+    total_pages: number
+    page_size: number
+    total_games: number
+}
 
-            <!-- Checkboxes -->
-            <div class="filter-row checkbox-group">
-                <label>
-                    <input type="checkbox" v-model="filters.free_games" @change="updateFilters">
-                    Include Free Games
-                </label>
-                <label>
-                    <input type="checkbox" v-model="filters.unreleased_games" @change="updateFilters">
-                    Include Unreleased Games
-                </label>
-            </div>
+interface Filters {
+    country_code: string
+    min_supported_players: number
+    max_supported_players: number
+    player_type: string
+    free_games: boolean
+    unreleased_games: boolean
+    release_date_from: string
+    release_date_to: string
+    min_reviews: number
+    tags: string[]
+}
 
-            <!-- Tag search row -->
-            <div class="filter-row">
-                <h4>Tags</h4>
-                <div class="filter-inputs tag-inputs">
-                    <input class="filter-input" type="text" v-model="tagInput" @keydown.enter="addTagFromInput" placeholder="Add a tag and press Enter">
-                </div>
-                <div class="tags" v-if="filters.tags.length > 0">
-                    <span class="tag" v-for="(tag, index) in filters.tags" :key="`filter-tag-${index}`" @click="removeTag(index)">
-                        {{ tag }}
-                    </span>
-                </div>
-            </div>
-        </div>
+interface Scoring {
+    rating: number
+    price: number
+    high_price: number
+}
 
-        <div class="rounded-box controls scoring">
-            <h3>Scoring</h3>
-            <!-- Scoring weights row -->
-            <div class="filter-row">
-                <h4>Scoring Weights</h4>
-                <div class="filter-inputs">
-                    <label>Rating Weight: {{ filters.weight_rating.toFixed(2) }}</label>
-                    <input class="filter-input" type="range" v-model.number="filters.weight_rating" @input="updateWeights('rating')" min="0" max="1" step="0.01">
-                </div>
-                <div class="filter-inputs">
-                    <label>Price Weight: {{ filters.weight_price.toFixed(2) }}</label>
-                    <input class="filter-input" type="range" v-model.number="filters.weight_price" @input="updateWeights('price')" min="0" max="1" step="0.01">
-                </div>
-            </div>
+const games = ref<any[]>([])
+const loading = ref<boolean>(false)
+const error = ref<string | null>(null)
+const debounceTimer = ref<number | null>(null)
+const debounceTime = 300
+const tagInput = ref<string>('')
+const countries = ref<Country[]>([])
 
-            <!-- Expensive game threshold row -->
-            <div class="filter-row">
-                <h4>Expensive Game Threshold</h4>
-                <div class="filter-inputs">
-                    <input class="filter-input" type="number" v-model.number="filters.high_price"
-                    @input="updateFilters" min="0" step="0.01"
-                    placeholder="Price in €"
-                    title="Whatever you find to be a bit expensive for a game to play with friends.">
-                    <span :key="filters.country_code">{{ getCurrency() }}</span>
-                </div>
-            </div>
-        </div>
-    </div>
+const pagination = reactive<Pagination>({
+    current_page: 1,
+    total_pages: 1,
+    page_size: 1, // Will be updated from API response
+    total_games: 0
+})
 
-    <!-- Loading indicator -->
-    <div v-if="loading" class="rounded-box response-info">
-        Loading games...
-    </div>
+const filters = reactive<Filters>({
+    country_code: 'SE',
+    min_supported_players: 1,
+    max_supported_players: 1000,
+    player_type: 'online',
+    free_games: true,
+    unreleased_games: true,
+    release_date_from: '1988-08-20',
+    release_date_to: new Date().toISOString().split('T')[0], // Format: YYYY-MM-DD
+    min_reviews: 50,
+    tags: []
+})
 
-    <!-- Error message -->
-    <div v-if="error" class="rounded-box response-info error">
-        {{ error }}
-    </div>
+const scoring = reactive<Scoring>({
+    rating: 0.7,
+    price: 0.3,
+    high_price: 30.0
+})
 
-    <!-- Pagination controls -->
-    <div v-if="!loading && !error && games.length > 0" class="rounded-box pagination">
-        <div class="pagination-buttons">
-            <button 
-                class="pagination-button" 
-                :disabled="pagination.current_page <= 1"
-                @click="goToPage(pagination.current_page - 1)">
-                Previous
-            </button>
-            <button 
-                class="pagination-button" 
-                :disabled="pagination.current_page >= pagination.total_pages"
-                @click="goToPage(pagination.current_page + 1)">
-                Next
-            </button>
-        </div>
-        <div class="pagination-info">
-            Page {{ pagination.current_page }} of {{ pagination.total_pages }} 
-            ({{ pagination.total_games }} games total)
-        </div>
-    </div>
-
-    <!-- Games list -->
-    <div class="rounded-box game" v-for="(g, index) in games" :key="`game-${g.steam_id || index}`">
-        <img :src="g.header_image" :alt="'Header for ' + g.title">
-        <h2>{{ g.title }}</h2>
-        <div class="game-info">
-            <p>
-                <strong>Score: </strong>{{ g.score.toFixed(3) }}<br>
-                <strong>Price: </strong>{{ getPrice(g) }} <span class="sale">{{ getSale(g) }}</span><br>
-                <strong>Steam Rating: </strong>{{ g.steam_rating > 0 ? (g.steam_rating * 100).toFixed(1) + '%' : 'N/A' }}
-                ({{ g.number_of_reviews }} reviews)<br>
-                <strong>Release Date: </strong>{{ g.is_released ? formatDate(g.release_date) : 'Coming soon' }}<br>
-            </p>
-            <p>
-                <strong>Couch Players: </strong>{{ g.couch_players }}<br>
-                <strong>LAN Players: </strong>{{ g.lan_players }}<br>
-                <strong>Online Players: </strong>{{ g.online_players }}<br>
-            </p>
-        </div>
-        <p>{{ decodeHtml(g.short_description) }}</p>
-        <div class="links">
-            <a :href="g.steam_url" target="_blank">Steam Page</a>
-            <a :href="g.cooptimus_url" target="_blank">Co-Optimus Page</a>
-        </div>
-        <div class="tags">
-            <span class="tag" v-for="(tag, tagIndex) in g.tags" :key="`${g.steam_id}-tag-${tagIndex}`" @click="addTag(tag)">
-                {{ tag }}
-            </span>
-        </div>
-    </div>
-</template>
-
-<script lang="ts">
-	import { Vue, Component, Prop } from "vue-property-decorator";
-
-    class Country {
-        code: string;
-        name: string;
-        currency: string;
+const loadCountries = async () => {
+    try {
+        const response = await fetch('/countries')
+        countries.value = await response.json()
+        countries.value.sort((a, b) => a.name.localeCompare(b.name))
+    } catch (err: any) {
+        error.value = err.message || 'Failed to load countries. Please reload page.'
     }
+}
 
-    class Pagination {
-        current_page: number = 1;
-        total_pages: number = 1;
-        page_size: number = 1; // Will be updated from API response
-        total_games: number = 0;
+const setDefaultCountryFromLocale = () => {
+    // Get user's locale (e.g., "en-US", "sv-SE", "de-DE")
+    const userLocale = navigator.language || navigator.languages[0]
+    
+    if (userLocale && userLocale.includes('-')) {
+        const countryCode = userLocale.split('-')[1]
+        
+        const countryExists = countries.value.some(c => c.code === countryCode)
+        if (countryExists) {
+            filters.country_code = countryCode
+        }
     }
+}
 
-    class Filters {
-        country_code: string = 'SE';
-        min_supported_players: number = 1;
-        max_supported_players: number = 1000;
-        player_type: string = 'online';
-        free_games: boolean = true;
-        unreleased_games: boolean = true;
-        release_date_from: string = '1988-08-20';
-        release_date_to: string = new Date().toISOString().split('T')[0]; // Format: YYYY-MM-DD
-        weight_rating: number = 0.7;
-        weight_price: number = 0.3;
-        high_price: number = 30.0;
-        min_reviews: number = 50;
-        tags: string[] = [];
+const validFilters = () => {
+    return filters.min_supported_players != null &&
+        filters.max_supported_players != null &&
+        filters.min_reviews != null &&
+        scoring.high_price != null
+}
+
+const fetchGames = async () => {
+    if (!validFilters())
+        return
+
+    loading.value = true
+    error.value = null
+    try {
+        const response = await fetch(`/games?${new URLSearchParams(getSearchParameters())}`)
+        
+        if (!response.ok) {
+            const errorData = await response.json()
+            throw new Error(errorData.detail || `Server error: ${response.status}`)
+        }
+
+        const data = await response.json()
+        games.value = data.games
+        pagination.total_pages = data.pagination.total_pages
+        pagination.page_size = data.pagination.page_size
+        pagination.total_games = data.pagination.total_games
+    } catch (err: any) {
+        console.error('Error fetching games:', err)
+        error.value = err.message || 'Failed to load games. Please try again.'
+        games.value = [] // Clear games on error
+    } finally {
+        loading.value = false
     }
+}
 
-	export default class Root extends Vue {
-        games: any[] = [];
-        loading: boolean = false;
-        error = null;
-        debounceTimer: number
-        debounceTime = 300;
-        tagInput: string = '';
-        countries: Country[] = [];
-        pagination = new Pagination();
-        filters = new Filters();
+const getSearchParameters = () => {
+    const search_params = { ...filters }
 
-		async mounted() {
-			await this.loadCountries();
-			this.setDefaultCountryFromLocale();
-			await this.fetchGames();
-		}
-		async loadCountries() {
-			try {
-				const response = await fetch('/countries');
-				this.countries = await response.json();
-				this.countries.sort((a, b) => a.name.localeCompare(b.name));
-			} catch (error) {
-				this.error = error.message || 'Failed to load countries. Please reload page.';
-			}
-		}
-		setDefaultCountryFromLocale() {
-			// Get user's locale (e.g., "en-US", "sv-SE", "de-DE")
-			const userLocale = navigator.language || navigator.languages[0];
-			
-			if (userLocale && userLocale.includes('-')) {
-				const countryCode = userLocale.split('-')[1];
-				
-				const countryExists = this.countries.some(c => c.code === countryCode);
-				if (countryExists) {
-					this.filters.country_code = countryCode;
-				}
-			}
-		}
-		async fetchGames() {
-			if(!this.validFilters())
-				return;
+    search_params.rating_weight = scoring.rating
+    search_params.price_weight = scoring.price
+    search_params.high_price = scoring.high_price
 
-			this.loading = true;
-			this.error = null;
-			try {
-				let search_params = structuredClone(Vue.toRaw(this.filters));
-				search_params.page = this.pagination.current_page;
-				if (search_params.tags && search_params.tags.length > 0)
-					search_params.tags = search_params.tags.join('|');
+    search_params.page = pagination.current_page
+    if (search_params.tags && search_params.tags.length > 0) {
+        search_params.tags = search_params.tags.join('|')
+    }
+    return search_params
+}
 
-				const response = await fetch(`/games?${new URLSearchParams(search_params)}`);
-				
-				if (!response.ok) {
-					const errorData = await response.json();
-					throw new Error(errorData.detail || `Server error: ${response.status}`);
-				}
+const updateFilters = () => {
+    if (debounceTimer.value) {
+        clearTimeout(debounceTimer.value)
+    }
+    
+    debounceTimer.value = setTimeout(() => {
+        // Reset to page 1 when filters change
+        pagination.current_page = 1
+        fetchGames()
+    }, debounceTime)
+}
 
-				const data = await response.json();
-				this.games = data.games;
-				this.pagination.total_pages = data.pagination.total_pages;
-				this.pagination.page_size = data.pagination.page_size;
-				this.pagination.total_games = data.pagination.total_games;
-			} catch (error) {
-				console.error('Error fetching games:', error);
-				this.error = error.message || 'Failed to load games. Please try again.';
-				this.games = []; // Clear games on error
-			} finally {
-				this.loading = false;
-			}
-		}
-		validFilters() {
-			return this.filters.min_supported_players != null &&
-				this.filters.max_supported_players != null &&
-				this.filters.min_reviews != null &&
-				this.filters.high_price != null
-		}
-		updateWeights(type) {
-			// Ensure weights always sum to 1
-			if (type === 'rating') {
-				//this.filters.weight_rating = parseFloat(this.filters.weight_rating);
-				this.filters.weight_price = 1 - this.filters.weight_rating;
-			} else if (type === 'price') {
-				//this.filters.weight_price = parseFloat(this.filters.weight_price);
-				this.filters.weight_rating = 1 - this.filters.weight_price;
-			}
-			this.updateFilters();
-		}
-		formatDate(dateStr: string) {
-			const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: '2-digit' };
-			return new Date(dateStr).toLocaleDateString(undefined, options);
-		}
-		getPrice(game) {
-			if(game.price == null || game.price.final <= 0)
-				return 'Free';
+const formatDate = (dateStr: string) => {
+    const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: '2-digit' }
+    return new Date(dateStr).toLocaleDateString(undefined, options)
+}
 
-			let price = (game.price.final / 100).toFixed(2);
-			return this.getCurrencyPrice(price);
-		}
-		getCurrencyPrice(price) {
-			const country = this.countries.find(c => c.code === this.filters.country_code);
-			const currency = country ? country.currency : '';
-			if(currency === "EUR")
-				return price + this.getCurrency();
-			else if(currency === "USD")
-				return this.getCurrency() + price;
+const getCurrency = () => {
+    if (countries.value.length === 0) return ''
 
-			return `${price} ${currency}`;
-		}
-		getCurrency() {
-			if(this.countries.length === 0)
-				return '';
+    const country = countries.value.find(c => c.code === filters.country_code)
+    const currency = country ? country.currency : ''
+    if (currency === "EUR") return '€'
+    else if (currency === "USD") return '$'
+    return currency
+}
 
-			const country = this.countries.find(c => c.code === this.filters.country_code);
-			const currency = country ? country.currency : '';
-			if(currency === "EUR")
-				return '€';
-			else if(currency === "USD")
-				return '$';
+const getCurrencyPrice = (price: string) => {
+    const country = countries.value.find(c => c.code === filters.country_code)
+    const currency = country ? country.currency : ''
+    if (currency === "EUR") return price + getCurrency()
+    else if (currency === "USD") return getCurrency() + price
+    return `${price} ${currency}`
+}
 
-			return currency;
-		}
-		getSale(game) {
-			if (game.price == null || game.price.final === game.price.initial)
-				return '';
+const getPrice = (game: any) => {
+    if (game.price == null || game.price.final <= 0) return 'Free'
+    const price = (game.price.final / 100).toFixed(2)
+    return getCurrencyPrice(price)
+}
 
-			const salePercentage = Math.round((1 - game.price.final / game.price.initial) * 100);
-			return `(${salePercentage}% off)`;
-		}
-		goToPage(page) {
-			if (page >= 1 && page <= this.pagination.total_pages) {
-				this.pagination.current_page = page;
-				this.fetchGames();
-			}
-		}
-		updateFilters() {
-			if (this.debounceTimer) {
-				clearTimeout(this.debounceTimer);
-			}
-			
-			this.debounceTimer = setTimeout(() => {
-				// Reset to page 1 when filters change
-				this.pagination.current_page = 1;
-				this.fetchGames();
-			}, this.debounceTime);
-		}
-		decodeHtml(html) {
-			const txt = document.createElement('textarea');
-			txt.innerHTML = html;
-			return txt.value;
-		}
-		addTagFromInput() {
-			this.addTag(this.tagInput);
-		}
-		addTag(tag: string) {
-			tag = tag.trim();
-			if (tag && !this.filters.tags.includes(tag)) {
-				this.filters.tags.push(tag);
-				this.tagInput = '';
-				this.updateFilters();
-			}
-		}
-		removeTag(index) {
-			this.filters.tags.splice(index, 1);
-			this.updateFilters();
-		}
-	}
+const getSale = (game: any) => {
+    if (game.price == null || game.price.final === game.price.initial) return ''
+    const salePercentage = Math.round((1 - game.price.final / game.price.initial) * 100)
+    return `(${salePercentage}% off)`
+}
+
+const goToPage = (page: number) => {
+    if (page >= 1 && page <= pagination.total_pages) {
+        pagination.current_page = page
+        fetchGames()
+    }
+}
+
+const addTag = (tag: string) => {
+    tag = tag.trim()
+    if (tag && !filters.tags.includes(tag)) {
+        filters.tags.push(tag)
+        tagInput.value = ''
+        updateFilters()
+    }
+}
+
+const decodeHtml = (html: string) => {
+    const txt = document.createElement('textarea')
+    txt.innerHTML = html
+    return txt.value
+}
+
+// Lifecycle
+onMounted(async () => {
+    await loadCountries()
+    setDefaultCountryFromLocale()
+    await fetchGames()
+})
 </script>
+
+<template>
+<div class="controls">
+    <filters
+        :countries="countries"
+        :filters="filters"
+        @update-results="updateFilters"
+        @add-tag="addTag">
+    </filters>
+    <scoring
+        :scoring="scoring"
+        :currency="getCurrency()"
+        @update-results="updateFilters">
+    </scoring>
+</div>
+
+<!-- Loading indicator -->
+<div v-if="loading" class="rounded-box response-info">
+    Loading games...
+</div>
+
+<!-- Error message -->
+<div v-if="error" class="rounded-box response-info error">
+    {{ error }}
+</div>
+
+<!-- Pagination controls -->
+<div v-if="!loading && !error && games.length > 0" class="rounded-box pagination">
+    <div class="pagination-buttons">
+        <button 
+            class="pagination-button" 
+            :disabled="pagination.current_page <= 1"
+            @click="goToPage(pagination.current_page - 1)">
+            Previous
+        </button>
+        <button 
+            class="pagination-button" 
+            :disabled="pagination.current_page >= pagination.total_pages"
+            @click="goToPage(pagination.current_page + 1)">
+            Next
+        </button>
+    </div>
+    <div class="pagination-info">
+        Page {{ pagination.current_page }} of {{ pagination.total_pages }} 
+        ({{ pagination.total_games }} games total)
+    </div>
+</div>
+
+<!-- Games list -->
+<div class="rounded-box game" v-for="(g, index) in games" :key="`game-${g.steam_id || index}`">
+    <img :src="g.header_image" :alt="'Header for ' + g.title">
+    <h2>{{ g.title }}</h2>
+    <div class="game-info">
+        <p>
+            <strong>Score: </strong>{{ g.score.toFixed(3) }}<br>
+            <strong>Price: </strong>{{ getPrice(g) }} <span class="sale">{{ getSale(g) }}</span><br>
+            <strong>Steam Rating: </strong>{{ g.steam_rating > 0 ? (g.steam_rating * 100).toFixed(1) + '%' : 'N/A' }}
+            ({{ g.number_of_reviews }} reviews)<br>
+            <strong>Release Date: </strong>{{ g.is_released ? formatDate(g.release_date) : 'Coming soon' }}<br>
+        </p>
+        <p>
+            <strong>Couch Players: </strong>{{ g.couch_players }}<br>
+            <strong>LAN Players: </strong>{{ g.lan_players }}<br>
+            <strong>Online Players: </strong>{{ g.online_players }}<br>
+        </p>
+    </div>
+    <p>{{ decodeHtml(g.short_description) }}</p>
+    <div class="links">
+        <a :href="g.steam_url" target="_blank">Steam Page</a>
+        <a :href="g.cooptimus_url" target="_blank">Co-Optimus Page</a>
+    </div>
+    <div class="tags">
+        <span class="tag" v-for="(tag, tagIndex) in g.tags" :key="`${g.steam_id}-tag-${tagIndex}`" @click="addTag(tag)">
+            {{ tag }}
+        </span>
+    </div>
+</div>
+</template>
 
 <style>
 	body {
@@ -508,20 +439,6 @@
 	.filter-inputs label {
 		min-width: 9rem;
 		font-size: 0.9rem;
-	}
-	.checkbox-group {
-		display: flex;
-		flex-direction: column;
-		gap: 0.6rem;
-	}
-	.checkbox-group label {
-		margin-top: 0.2rem;
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
-	.tag-inputs input {
-		width: 13rem;
 	}
 	.response-info {
 		text-align: center;

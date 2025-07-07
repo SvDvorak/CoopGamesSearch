@@ -7,6 +7,7 @@ from Game import Game
 from datetime import datetime, date
 from Scraper import Scraper
 from ScrapingThread import ScrapingThread
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
@@ -120,8 +121,8 @@ async def get_games(min_supported_players: Optional[int] = 1,
 				   unreleased_games: Optional[bool] = True,
 				   release_date_from: Optional[str] = '1988-08-20',						# YYYY-MM-DD format
 				   release_date_to: Optional[str] = date.today().strftime("%Y-%m-%d"),	# YYYY-MM-DD format
-				   weight_rating: Optional[float] = 0.7,								# How much game the rating is taken into account
-				   weight_price: Optional[float] = 0.3,									# How much price is taken into account
+				   rating_weight: Optional[float] = 0.7,								# How much game the rating is taken into account
+				   price_weight: Optional[float] = 0.3,									# How much price is taken into account
 				   high_price: Optional[float] = 20,									# What an "expensive" game classifies as
 				   min_reviews: Optional[int] = 0,										# Minimum number of reviews required
 				   tags: Optional[str] = None,											# Pipe-separated list of tags
@@ -151,7 +152,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 					matches_tags(game, search_tags))]
 
 	for game in filtered_games:
-		game.compute_score(weight_rating, weight_price, high_price, country_code)
+		game.compute_score(rating_weight, price_weight, high_price, country_code)
 	
 	# Sort by score (highest first)
 	filtered_games.sort(key=lambda x: x.score, reverse=True)
@@ -197,12 +198,23 @@ if allow_manual_scrape:
 
 @app.get("/logo")
 async def serve_logo():
-	return FileResponse("../Frontend/Logo.svg")
+    return FileResponse("../Frontend/Logo.svg")
 
 @app.get("/countries")
-async def serve_logo():
-	return FileResponse("../Countries.json")
+async def serve_countries():
+    return FileResponse("../Countries.json")
+
+# Serve built Vue app static assets
+app.mount("/assets", StaticFiles(directory="../Frontend/dist/assets"), name="assets")
 
 @app.get("/")
 async def serve_frontend():
-	return FileResponse("../Frontend/FilterPage.html")
+    return FileResponse("../Frontend/dist/index.html")
+
+# Catch-all route for Vue Router - Enable this when you add routing
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    # Don't catch API routes
+    if full_path.startswith(("games", "countries", "logo", "scrape", "assets")):
+        raise HTTPException(status_code=404, detail="Not found")
+    return FileResponse("../Frontend/dist/index.html")
