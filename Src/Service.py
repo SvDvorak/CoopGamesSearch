@@ -10,12 +10,16 @@ from ScrapingThread import ScrapingThread
 
 app = FastAPI()
 
-# Enable CORS for frontend-backend communication
 app.add_middleware(
 	CORSMiddleware,
-	allow_origins=["*"],  # In production, specify your frontend domain
+	allow_origins=[
+		"https://coopgames.anwilc.com",
+		"http://coopgames.anwilc.com",
+		"http://localhost:80",  # For local development
+		"http://127.0.0.1:80"   # For local development
+	],
 	allow_credentials=True,
-	allow_methods=["*"],
+	allow_methods=["GET", "POST"],
 	allow_headers=["*"],
 )
 
