@@ -66,7 +66,6 @@ const setDefaultCountryFromLocale = () => {
 }
 
 const validFilters = () => {
-    console.log(filters)
     return filters.min_supported_players != '' &&
         filters.max_supported_players != '' &&
         filters.min_reviews != '' &&
