@@ -1,17 +1,17 @@
-interface CountryData {
+export interface CountryData {
     code: string
     name: string
     currency: string
 }
 
-interface PaginationData {
+export interface PaginationData {
     current_page: number
     total_pages: number
     page_size: number
     total_games: number
 }
 
-interface FiltersData {
+export interface FiltersData {
     country_code: string
     min_supported_players: number
     max_supported_players: number
@@ -24,13 +24,15 @@ interface FiltersData {
     tags: string[]
 }
 
-interface ScoringData {
+export interface ScoringData {
     rating: number
     price: number
+    sale: number
+    number_of_reviews: number
     high_price: number
 }
 
-interface GameData {
+export interface GameData {
     steam_id: string
     title: string
     header_image: string

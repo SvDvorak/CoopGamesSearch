@@ -123,6 +123,8 @@ async def get_games(min_supported_players: Optional[int] = 1,
 				   release_date_to: Optional[str] = date.today().strftime("%Y-%m-%d"),	# YYYY-MM-DD format
 				   rating_weight: Optional[float] = 0.7,								# How much game the rating is taken into account
 				   price_weight: Optional[float] = 0.3,									# How much price is taken into account
+				   sale_weight: Optional[float] = 0.0,									# How much sale is taken into account
+				   number_of_reviews_weight: Optional[float] = 0.0,						# How much number of reviews is taken into account
 				   high_price: Optional[float] = 20,									# What an "expensive" game classifies as
 				   min_reviews: Optional[int] = 0,										# Minimum number of reviews required
 				   tags: Optional[str] = None,											# Pipe-separated list of tags
@@ -145,14 +147,14 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	filtered_games = [game for game in games if
 					game.is_listed_in_country(country_code) and
 					(matches_players(game, min_supported_players, max_supported_players, player_type) and
-					(free_games or game.get_price(country_code) > 0) and
+					(free_games or game.get_price(country_code).final > 0) and
 					(unreleased_games or game.is_released) and
 					(game.number_of_reviews >= min_reviews) and
 					is_within_date_range(game, from_date, to_date) and
 					matches_tags(game, search_tags))]
 
 	for game in filtered_games:
-		game.compute_score(rating_weight, price_weight, high_price, country_code)
+		game.compute_score(rating_weight, price_weight, sale_weight, number_of_reviews_weight, high_price, country_code)
 	
 	# Sort by score (highest first)
 	filtered_games.sort(key=lambda x: x.score, reverse=True)

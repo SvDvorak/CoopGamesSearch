@@ -24,18 +24,22 @@ class Game:
 	is_removed: bool = True
 	score: float = 0					# Algorithm scoring
 	
-	def compute_score(self, weight_rating, weight_price, high_price, country_code):
-		price = self.get_price(country_code) / 100.0  # convert cents to Euro
-		a = (self.steam_rating ** 2) * weight_rating
-		b = (price / high_price) * weight_price
-		self.score = a - b
+	def compute_score(self, rating_weight, price_weight, sale_weight, number_of_reviews_weight, high_price, country_code):
+		price = self.get_price(country_code)
+		rating_score = (self.steam_rating ** 2) * rating_weight
+		price_score = -(price.final / 100.0 / high_price) * price_weight
+		sale_score = (1 - price.final / price.initial) * sale_weight if price.initial > 0 else 0
+		high_number_of_reviews = 10000
+		number_of_reviews_score = (math.log(self.number_of_reviews + 1) / math.log(high_number_of_reviews)) * number_of_reviews_weight
+
+		self.score = rating_score + price_score + sale_score + number_of_reviews_score
 		#return review_score ** 2 / math.log(price + 2)  # your scoring formula
 
 	def get_price(self, country_code):
 		if country_code in self.prices:
-			return self.prices[country_code].final
+			return self.prices[country_code]
 		else:
-			return 0
+			return Price(0, 0)
 		
 	def is_listed_in_country(self, country_code):
 		if country_code in self.delisted:

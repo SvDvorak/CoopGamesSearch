@@ -10,7 +10,7 @@ import { CountryData, PaginationData, FiltersData, ScoringData, GameData } from 
 const games = ref<GameData[]>([])
 const loading = ref<boolean>(false)
 const error = ref<string | null>(null)
-const debounceTimer = ref<number | null>(null)
+const debounceTimer = ref<NodeJS.Timeout | null>(null)
 const debounceTime = 300
 const tagInput = ref<string>('')
 const countries = ref<CountryData[]>([])
@@ -35,9 +35,11 @@ const filters = reactive<FiltersData>({
     tags: []
 })
 
-const scoring = reactive<Scoring>({
+const scoring = reactive<ScoringData>({
     rating: 0.7,
     price: 0.3,
+    sale: 0.0,
+    number_of_reviews: 0.0,
     high_price: 30.0
 })
 
@@ -66,10 +68,10 @@ const setDefaultCountryFromLocale = () => {
 }
 
 const validFilters = () => {
-    return filters.min_supported_players != '' &&
-        filters.max_supported_players != '' &&
-        filters.min_reviews != '' &&
-        scoring.high_price != ''
+    return filters.min_supported_players &&
+        filters.max_supported_players &&
+        filters.min_reviews &&
+        scoring.high_price
 }
 
 const fetchGames = async () => {
@@ -101,10 +103,12 @@ const fetchGames = async () => {
 }
 
 const getSearchParameters = () => {
-    const search_params = { ...filters }
+    const search_params: any = { ...filters }
 
     search_params.rating_weight = scoring.rating
     search_params.price_weight = scoring.price
+    search_params.sale_weight = scoring.sale
+    search_params.number_of_reviews_weight = scoring.number_of_reviews
     search_params.high_price = scoring.high_price
 
     search_params.page = pagination.current_page
