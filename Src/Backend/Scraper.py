@@ -136,6 +136,7 @@ class Scraper:
 		data = game_response["data"]
 		game.header_image = data["header_image"]
 		game.short_description = data["short_description"]
+		game.is_removed = False
 
 		try:
 			if data["release_date"]["coming_soon"]:

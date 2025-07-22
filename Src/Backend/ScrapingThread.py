@@ -58,7 +58,7 @@ class ScrapingThread:
 			self.set_games(merged_games)
 			
 			self.last_scrape_time = time.time()
-			print(f"\n=== Background scraping completed. Found {len(new_games)} games ===\n")
+			print(f"\n=== Background scraping completed. Found {len(new_games)} new games. New total is {len(merged_games)} ===\n")
 		finally:
 			self.scraping_in_progress = False
 			self.scraper.scraping_state = "None"
