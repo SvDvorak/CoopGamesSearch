@@ -1,6 +1,7 @@
 <script setup lang="ts">
 
 import { ref, reactive, onMounted } from 'vue'
+import SidePanel from './SidePanel.vue'
 import Filters from './Filters.vue'
 import Scoring from './Scoring.vue'
 import Pagination from './Pagination.vue'
@@ -10,7 +11,7 @@ import { CountryData, PaginationData, FiltersData, ScoringData, GameData } from 
 const games = ref<GameData[]>([])
 const loading = ref<boolean>(false)
 const error = ref<string | null>(null)
-const debounceTimer = ref<NodeJS.Timeout | null>(null)
+const debounceTimer = ref<number | null>(null)
 const debounceTime = 300
 const tagInput = ref<string>('')
 const countries = ref<CountryData[]>([])
@@ -184,19 +185,21 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div class="controls">
-        <filters
-            :countries="countries"
-            :filters="filters"
-            @update-results="updateFilters"
-            @add-tag="addTag">
-        </filters>
-        <scoring
-            :scoring="scoring"
-            :currency="getCurrencySymbol()"
-            @update-results="updateFilters">
-        </scoring>
-    </div>
+  <SidePanel />
+  
+  <div class="controls">
+    <filters
+      :countries="countries"
+      :filters="filters"
+      @update-results="updateFilters"
+      @add-tag="addTag">
+    </filters>
+    <scoring
+      :scoring="scoring"
+      :currency="getCurrencySymbol()"
+      @update-results="updateFilters">
+    </scoring>
+  </div>
 
     <!-- Loading indicator -->
     <div v-if="loading" class="rounded-box response-info">

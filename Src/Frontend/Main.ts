@@ -2,5 +2,9 @@
 
 import { createApp } from 'vue'
 import App from './Components/Root.vue'
+import VueClickAway from "vue3-click-away";
 
-createApp(App).mount('#app')
+
+const app = createApp(App)
+app.use(VueClickAway)
+app.mount('#app')

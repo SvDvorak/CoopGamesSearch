@@ -24,7 +24,8 @@
     "search"
   ],
   "dependencies": {
-    "vue": "^3.5.17"
+    "vue": "^3.5.17",
+    "vue3-click-away": "^1.2.4"
   },
   "devDependencies": {
     "@tsconfig/node22": "^22.0.2",

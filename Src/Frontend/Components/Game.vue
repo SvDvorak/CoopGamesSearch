@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import GameData from './Types.ts'
+import { GameData } from './Types.ts'
+import { decodeHTML } from './DecodeHTML.ts'
 
 interface Props {
     game: GameData
@@ -29,12 +30,6 @@ const formatDate = (dateStr: string) => {
     const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: '2-digit' }
     return new Date(dateStr).toLocaleDateString(undefined, options)
 }
-
-const decodeHtml = (html: string) => {
-    const txt = document.createElement('textarea')
-    txt.innerHTML = html
-    return txt.value
-}
 </script>
 
 <template>
@@ -55,7 +50,7 @@ const decodeHtml = (html: string) => {
                 <strong>Online Players: </strong>{{ game.online_players }}<br>
             </p>
         </div>
-        <p>{{ decodeHtml(game.short_description) }}</p>
+        <p>{{ decodeHTML(game.short_description) }}</p>
         <div class="links">
             <a :href="game.steam_url" target="_blank">Steam Page</a>
             <a :href="game.cooptimus_url" target="_blank">Co-Optimus Page</a>
