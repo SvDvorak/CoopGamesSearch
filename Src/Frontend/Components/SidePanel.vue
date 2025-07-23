@@ -65,6 +65,10 @@ const onClickAway = () => {
 	border-radius: 1em 0 0 1em;
 }
 
+.shortcuts a {
+	cursor: pointer;
+}
+
 .shortcuts img {
 	width: 2.5em;
 	margin: 0.2em;

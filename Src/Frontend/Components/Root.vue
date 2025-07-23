@@ -15,6 +15,7 @@ const debounceTimer = ref<number | null>(null)
 const debounceTime = 300
 const tagInput = ref<string>('')
 const countries = ref<CountryData[]>([])
+const hiddenGames = ref<Set<string>>(new Set())
 
 const pagination = reactive<PaginationData>({
     current_page: 1,
@@ -90,7 +91,7 @@ const fetchGames = async () => {
         }
 
         const data = await response.json()
-        games.value = data.games
+        games.value = filterHiddenGames(data.games)
         pagination.total_pages = data.pagination.total_pages
         pagination.page_size = data.pagination.page_size
         pagination.total_games = data.pagination.total_games
@@ -173,11 +174,31 @@ const addTag = (tag: string) => {
     }
 }
 
+const hideGame = (steamId: string) => {
+    hiddenGames.value.add(steamId)
+    localStorage.setItem('hidden-games', JSON.stringify([...hiddenGames.value]))
+    games.value = filterHiddenGames(games.value)
+}
+
+const loadHiddenGames = () => {
+    const saved = localStorage.getItem('hidden-games')
+    if (!saved)
+        return;
+
+    const hiddenArray = JSON.parse(saved)
+    hiddenGames.value = new Set(hiddenArray)
+}
+
+const filterHiddenGames = (gamesList: GameData[]) => {
+    return gamesList.filter(game => !hiddenGames.value.has(game.steam_id))
+}
+
 const showPagination = () => {
     return !loading.value && !error.value && games.value.length > 0
 }
 
 onMounted(async () => {
+    loadHiddenGames()
     await loadCountries()
     setDefaultCountryFromLocale()
     await fetchGames()
@@ -208,7 +229,7 @@ onMounted(async () => {
     </Pagination>
 
     <game v-for="(game, index) in games" :key="`game-${game.steam_id || index}`" :game="game"
-        :getCurrencyPrice="getCurrencyPrice" @add-tag="addTag">
+        :getCurrencyPrice="getCurrencyPrice" @add-tag="addTag" @hide-game="hideGame">
     </game>
 
     <Pagination v-if="showPagination()" :pagination="pagination" @go-to-page="goToPage">

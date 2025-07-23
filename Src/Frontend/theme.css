@@ -11,6 +11,7 @@ html {
   --disabled-bg-color: #f9f9f9;
   --disabled-text-color: #999;
   --disabled-border-color: #e0e0e0;
+  --hide-color: #95442b82;
 }
 
 [data-theme="dark"] {

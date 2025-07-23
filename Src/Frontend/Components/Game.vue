@@ -8,10 +8,14 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits(['add-tag'])
+const emit = defineEmits(['add-tag', 'hide-game'])
 
 const addTag = (tag: string) => {
     emit('add-tag', tag)
+}
+
+const hideGame = () => {
+    emit('hide-game', props.game.steam_id)
 }
 
 const getPrice = (game: any) => {
@@ -34,6 +38,11 @@ const formatDate = (dateStr: string) => {
 
 <template>
     <div class="rounded-box game">
+        <a class="hide-button" @click="hideGame" title="Hide this game">
+            <!-- Super ugly to have to inline the SVG like this but I have to so that I can change color in CSS-->
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor"><path d="M650-445 549-546q2-11-7.5-22t-23.5-9l-93-93q14-5 28-7.5t27-2.5q75 0 127.5 52.5T660-500q0 11-2.5 27t-7.5 28Zm154 154-78-78q31-27 56-58t48-73q-52-100-143.5-160T480-720q-29 0-51.5 3t-42.5 8l-88-88q41-17 88-25.5t94-8.5q157 0 283.5 88.5T951-500q-23 61-62.5 115.5T804-291ZM780-44 630-193q-33 12-70.5 18t-79.5 6q-158 0-284.5-89.5T9-500q20-51 53-100t72-89L28-795l67-67 751 752-66 66ZM213-613q-27 28-45.5 53T131-500q50 101 142 160.5T480-280q11 0 25.5-1t34.5-4l-36-38q-6 2-12 2.5t-12 .5q-75 0-127.5-52.5T300-500v-11.5q0-6.5 1-12.5l-88-89Zm343 74Zm-180 90Z"/>
+            </svg>
+        </a>
         <img :src="game.header_image" :alt="'Header for ' + game.title">
         <h2>{{ game.title }}</h2>
         <div class="game-info">
@@ -64,10 +73,31 @@ const formatDate = (dateStr: string) => {
 </template>
 
 <style scoped>
+.game {
+    position: relative;
+}
 .game img {
     width: 31rem;
     height: auto;
     border-radius: 4px;
+}
+.hide-button {
+    position: absolute;
+    top: 1em;
+    right: 1em;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+.hide-button svg {
+    color: var(--hide-color);
+}
+.hide-button svg:hover {
+    filter: brightness(150%);
 }
 .game h2 {
     margin-top: 0.6rem;
