@@ -6,7 +6,7 @@ import Filters from './Filters.vue'
 import Scoring from './Scoring.vue'
 import Pagination from './Pagination.vue'
 import Game from './Game.vue'
-import { CountryData, PaginationData, FiltersData, ScoringData, GameData } from './Types.ts'
+import { CountryData, FiltersData, ScoringData, GameData } from './Types.ts'
 
 const games = ref<GameData[]>([])
 const loading = ref<boolean>(false)
@@ -16,18 +16,14 @@ const debounceTime = 300
 const tagInput = ref<string>('')
 const countries = ref<CountryData[]>([])
 const hiddenGames = ref<Set<string>>(new Set())
+const totalGames = ref<number>(0)
 
-const hasHiddenGames = computed(() => hiddenGames.value.size > 0)
 const visibleGames = computed(() => {
     return games.value.filter(game => !hiddenGames.value.has(game.steam_id))
 })
 
-const pagination = reactive<PaginationData>({
-    current_page: 1,
-    total_pages: 1,
-    page_size: 1, // Will be updated from API response
-    total_games: 0
-})
+const visibleGamesCount = computed(() => (totalGames.value - games.value.length) + visibleGames.value.length)
+const hiddenGamesCount = computed(() => games.value.length - visibleGames.value.length )
 
 const filters = reactive<FiltersData>({
     country_code: 'SE',
@@ -96,10 +92,8 @@ const fetchGames = async () => {
         }
 
         const data = await response.json()
-        games.value = data.games
-        pagination.total_pages = data.pagination.total_pages
-        pagination.page_size = data.pagination.page_size
-        pagination.total_games = data.pagination.total_games
+        games.value = games.value.concat(data.games)
+        totalGames.value = data.total_games
     } catch (err: any) {
         console.error('Error fetching games:', err)
         error.value = err.message || 'Failed to load games. Please try again.'
@@ -118,11 +112,15 @@ const getSearchParameters = () => {
     search_params.number_of_reviews_weight = scoring.number_of_reviews
     search_params.high_price = scoring.high_price
 
-    search_params.page = pagination.current_page
+    search_params.next_index = games.value.length
     if (search_params.tags && search_params.tags.length > 0) {
         search_params.tags = search_params.tags.join('|')
     }
     return search_params
+}
+
+const loadMoreGames = () => {
+    fetchGames()
 }
 
 const updateFilters = () => {
@@ -131,8 +129,8 @@ const updateFilters = () => {
     }
     
     debounceTimer.value = setTimeout(() => {
-        // Reset to page 1 when filters change
-        pagination.current_page = 1
+        // Clear out games before we fetch
+        games.value = []
         fetchGames()
     }, debounceTime)
 }
@@ -163,13 +161,6 @@ const getCurrencySymbol = () => {
     return currency
 }
 
-const goToPage = (page: number) => {
-    if (page >= 1 && page <= pagination.total_pages) {
-        pagination.current_page = page
-        fetchGames()
-    }
-}
-
 const addTag = (tag: string) => {
     tag = tag.trim()
     if (tag && !filters.tags.includes(tag)) {
@@ -198,8 +189,12 @@ const clearHidden = () => {
     localStorage.setItem('hidden-games', JSON.stringify([]))
 }
 
-const showPagination = () => {
+const hasRetrievedGames = () => {
     return !loading.value && !error.value && games.value.length > 0
+}
+
+const canRetrieveMoreGames = () => {
+    return hasRetrievedGames() && totalGames.value != games.value.length
 }
 
 onMounted(async () => {
@@ -230,12 +225,18 @@ onMounted(async () => {
         {{ error }}
     </div>
 
-    <Pagination v-if="showPagination()" :pagination="pagination" :hasHiddenGames="hasHiddenGames" @go-to-page="goToPage" @clear-hidden="clearHidden">
+    <Pagination v-if="hasRetrievedGames()" :total_games="visibleGamesCount" :hidden_games="hiddenGamesCount" @clear-hidden="clearHidden">
     </Pagination>
 
     <game v-for="(game, index) in visibleGames" :key="`game-${game.steam_id || index}`" :game="game"
         :getCurrencyPrice="getCurrencyPrice" @add-tag="addTag" @hide-game="hideGame">
     </game>
+
+    <div class="rounded-box load-more" v-if="canRetrieveMoreGames()">
+        <button @click="loadMoreGames">
+            Load more
+        </button>
+    </div>
 </template>
 
 <style>
@@ -367,5 +368,9 @@ button:disabled {
     border-radius: 8px;
     padding: 1rem;
     color: #c33;
+}
+.load-more {
+    display: flex;
+    justify-content: center;
 }
 </style>

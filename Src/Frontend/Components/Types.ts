@@ -4,13 +4,6 @@ export interface CountryData {
     currency: string
 }
 
-export interface PaginationData {
-    current_page: number
-    total_pages: number
-    page_size: number
-    total_games: number
-}
-
 export interface FiltersData {
     country_code: string
     min_supported_players: number

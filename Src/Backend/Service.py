@@ -76,11 +76,11 @@ def validate_date_ranges(from_date, to_date):
 			detail="release_date_from cannot be later than release_date_to"
 		)
 
-def validate_pagination(page):
-	if page < 1:
+def validate_pagination(next_index):
+	if next_index < 0:
 		raise HTTPException(
 			status_code=400,
-			detail="Page number must be greater than 0"
+			detail="Next index number must be greater or equal to 0"
 		)
 
 def validate_country_code(country_code):
@@ -128,7 +128,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 				   high_price: Optional[float] = 20,									# What an "expensive" game classifies as
 				   min_reviews: Optional[int] = 0,										# Minimum number of reviews required
 				   tags: Optional[str] = None,											# Pipe-separated list of tags
-				   page: Optional[int] = 1,												# Page number (1-based)
+				   next_index: Optional[int] = 1,										# Index of the first game in the response, used for pagination
 				   country_code: Optional[str] = "SE"):									
 	
 	from_date = validate_date_string(release_date_from, "release_date_from")
@@ -136,7 +136,7 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	
 	validate_player_count_range(min_supported_players, max_supported_players)
 	validate_date_ranges(from_date, to_date)
-	validate_pagination(page)
+	validate_pagination(next_index)
 	validate_country_code(country_code)
 
 	search_tags = []
@@ -159,21 +159,20 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	# Sort by score (highest first)
 	filtered_games.sort(key=lambda x: x.score, reverse=True)
 	
-	page_size = 40
-	total_pages = ceiling_division(len(filtered_games), page_size)
-	start_index = (page - 1) * page_size
-	end_index = start_index + page_size
-	paginated_games = filtered_games[start_index:end_index]
+	max_games_returned = 10
+	start_index = next_index
+	paginated_games = []
+	# Clamping between 0 and max_games_returned, ensuring we don't go outside the filtered results
+	games_to_return = max(0, min(max_games_returned, len(filtered_games) - start_index))
+	end_index = start_index + games_to_return
+	if(games_to_return > 0):
+		paginated_games = filtered_games[start_index:end_index]
 	
 	status = scrapingThread.get_status()
 	
 	return {
 		"games": [game.sendable_dict(country_code) for game in paginated_games],
-		"pagination": {
-			"total_pages": total_pages,
-			"page_size": page_size,
-			"total_games": len(filtered_games),
-		},
+		"total_games": len(filtered_games),
 		"scraping_in_progress": status["scraping_in_progress"],
 		"last_scrape_hours_ago": status["last_scrape_hours_ago"]
 	}
