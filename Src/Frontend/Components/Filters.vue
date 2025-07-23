@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { CountryData, FiltersData } from './Types.ts'
 
 interface Props {
-    countries: Country[]
+    countries: CountryData[]
     filters: FiltersData
 }
 
