@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import PagenationData from './Types.ts'
+import { PaginationData } from './Types.ts'
 
 interface Props {
-    pagination: PagenationData
+    pagination: PaginationData
 }
 
 const props = defineProps<Props>()
@@ -47,6 +47,15 @@ const goToPage = (page: number) => {
 }
 .pagination-info {
     font-size: 0.9rem;
-    color: #666;
+    color: var(--text-color);
+}
+.pagination-button {
+  background-color: var(--button-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+}
+
+.pagination-button:hover {
+  background-color: var(--button-hover);
 }
 </style>

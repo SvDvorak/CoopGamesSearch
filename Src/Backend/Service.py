@@ -200,7 +200,7 @@ if allow_manual_scrape:
 
 @app.get("/logo")
 async def serve_logo():
-    return FileResponse("../Frontend/Logo.svg")
+    return FileResponse("../Frontend/Resources/Logo.svg")
 
 @app.get("/countries")
 async def serve_countries():

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import ThemeToggle from './ThemeToggle.vue'
 
 const showInfo = ref(false)
 
@@ -15,24 +16,28 @@ const onClickAway = () => {
 </script>
 
 <template>
-  <div class="sidebar" v-click-away="onClickAway">
-	<div class="shortcuts">
-		<a @click="showInfo = !showInfo"><img src="./InfoIcon.svg" /></a>
-		<a :href="emailLink"><img src="./MailIcon.svg" /></a>
-		<a href="https://github.com/SvDvorak/CoopGamesSearch" target="_blank"><img src="./GithubIcon.svg" /></a>
+	<div class="sidebar" v-click-away="onClickAway">
+		<div class="shortcuts">
+			<a @click="showInfo = !showInfo"><img src="../Resources/InfoIcon.svg" /></a>
+			<ThemeToggle />
+			<a :href="emailLink"><img src="../Resources/MailIcon.svg" /></a>
+			<a href="https://github.com/SvDvorak/CoopGamesSearch" target="_blank"><img
+					src="../Resources/GithubIcon.svg" /></a>
+		</div>
+		<div class="info" v-show="showInfo">
+			<h3>Coop Games Search</h3>
+			<p>This is a tool I made to find games on sale to play with a number of friends of mine. Here you can find
+				cheap and good games that support a specified number of players according to your friend group.</p>
+			<p>All data is a combination of the data from Co-Optimus, Steam and Steamspy.</p>
+			<h3>Known Issues</h3>
+			<ul>
+				<li>Data is limited to the games available on Co-Optimus; though some games on Co-Optimus might still be
+					missing here.</li>
+				<li>Prices update every 12 hours so recently started/ended sale prices will not show immediately.</li>
+			</ul>
+			<p></p>
+		</div>
 	</div>
-	<div class="info" v-show="showInfo">
-		<h3>Coop Games Search</h3>
-		<p>This is a tool I made to find games on sale to play with a number of friends of mine. Here you can find cheap and good games that support a specified number of players according to your friend group.</p>
-		<p>All data is a combination of the data from Co-Optimus, Steam and Steamspy.</p>
-		<h3>Known Issues</h3>
-		<ul>
-			<li>Data is limited to the games available on Co-Optimus; though some games on Co-Optimus might still be missing here.</li>
-			<li>Prices update every 12 hours so recently started/ended sale prices will not show immediately.</li>
-		</ul>
-		<p></p>
-	</div>
-  </div>
 </template>
 
 <style scoped>
@@ -49,13 +54,13 @@ const onClickAway = () => {
 }
 
 .sidebar div {
-	background: rgba(240, 240, 240, 0.9);
+	background: var(--card-bg);
 }
 
 .shortcuts {
 	display: flex;
 	flex-direction: column;
-	border: 0.1em solid #ccc;
+	border: 0.1em solid var(--border-color);
 	border-right-width: 0;
 	border-radius: 1em 0 0 1em;
 }
@@ -66,7 +71,7 @@ const onClickAway = () => {
 }
 
 .info {
-	border: 0.1em solid #ccc;
+	border: 0.1em solid var(--border-color);
 	border-left: 0px;
 	border-left: 0px;
 	padding: 0.7em;

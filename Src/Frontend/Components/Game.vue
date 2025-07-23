@@ -89,5 +89,9 @@ const formatDate = (dateStr: string) => {
 }
 .links a {
     margin-right: 0.6rem;
+    color: var(--accent-color);
+}
+.links a:hover {
+    opacity: 0.8;
 }
 </style>

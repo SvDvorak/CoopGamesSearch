@@ -185,21 +185,14 @@ onMounted(async () => {
 </script>
 
 <template>
-  <SidePanel />
-  
-  <div class="controls">
-    <filters
-      :countries="countries"
-      :filters="filters"
-      @update-results="updateFilters"
-      @add-tag="addTag">
-    </filters>
-    <scoring
-      :scoring="scoring"
-      :currency="getCurrencySymbol()"
-      @update-results="updateFilters">
-    </scoring>
-  </div>
+    <SidePanel />
+
+    <div class="controls">
+        <filters :countries="countries" :filters="filters" @update-results="updateFilters" @add-tag="addTag">
+        </filters>
+        <scoring :scoring="scoring" :currency="getCurrencySymbol()" @update-results="updateFilters">
+        </scoring>
+    </div>
 
     <!-- Loading indicator -->
     <div v-if="loading" class="rounded-box response-info">
@@ -211,23 +204,14 @@ onMounted(async () => {
         {{ error }}
     </div>
 
-    <Pagination 
-        v-if="showPagination()" 
-        :pagination="pagination" 
-        @go-to-page="goToPage">
+    <Pagination v-if="showPagination()" :pagination="pagination" @go-to-page="goToPage">
     </Pagination>
 
-    <game v-for="(game, index) in games"
-        :key="`game-${game.steam_id || index}`"
-        :game="game"
-        :getCurrencyPrice="getCurrencyPrice"
-        @add-tag="addTag">
+    <game v-for="(game, index) in games" :key="`game-${game.steam_id || index}`" :game="game"
+        :getCurrencyPrice="getCurrencyPrice" @add-tag="addTag">
     </game>
 
-    <Pagination 
-        v-if="showPagination()" 
-        :pagination="pagination" 
-        @go-to-page="goToPage">
+    <Pagination v-if="showPagination()" :pagination="pagination" @go-to-page="goToPage">
     </Pagination>
 </template>
 
@@ -235,9 +219,10 @@ onMounted(async () => {
 body {
     font-family: Arial, sans-serif;
     margin: 1rem auto;
-    background-color: #f4f4f4;
+    background-color: var(--bg-color);
     max-width: 50rem;
     padding: 0 1rem;
+    color: var(--text-color);
 }
 
 h1 {
@@ -268,22 +253,23 @@ input:disabled, button:disabled {
 }
 button {
     padding: 0.5rem 1rem;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    background-color: #fff;
+    background-color: var(--card-color);
     text-decoration: none;
-    color: #333;
+    color: var(--text-color);
 }
 button:hover:not(:disabled) {
-    background-color: #f5f5f5;
+    background-color: var(--button-hover);
 }
 button:disabled {
-    background-color: #f9f9f9;
-    color: #999;
+    background-color: var(--disabled-bg-color);
+    color: var(--disabled-text-color);
+    background-color: var(--disabled-border-color);
 }
 .rounded-box {
-    background-color: #fff;
-    border: 1px solid #ddd;
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     margin-bottom: 0.7rem;
     border-radius: 5px;
@@ -294,8 +280,8 @@ button:disabled {
 }
 .tag {
     display: inline-block;
-    background-color: #e0e0e0;
-    color: #333;
+    background-color: var(--button-bg);
+    color: var(--text-color);
     padding: 4px 8px;
     margin: 2px 2px 2px 2px;
     border-radius: 12px;
@@ -304,7 +290,7 @@ button:disabled {
     transition: background-color 0.2s;
 }
 .tag:hover {
-    background-color: #c0c0c0;
+    background-color: var(--button-hover);
 }
 .controls {
     gap: 2.6rem;
@@ -330,9 +316,13 @@ button:disabled {
 }
 .filter-input {
     padding: 0.25rem 0.6rem;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border-color);
     border-radius: 4px;
-    background-color: #fff;
+    background-color: var(--button-bg);
+    color: var(--text-color);
+}
+.filter-input:hover, .pagination-button:hover {
+    background-color: var(--button-hover);
 }
 .filter-inputs input {
     width: 8rem;
