@@ -1,6 +1,6 @@
 <script setup lang="ts">
 
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import SidePanel from './SidePanel.vue'
 import Filters from './Filters.vue'
 import Scoring from './Scoring.vue'
@@ -16,6 +16,11 @@ const debounceTime = 300
 const tagInput = ref<string>('')
 const countries = ref<CountryData[]>([])
 const hiddenGames = ref<Set<string>>(new Set())
+
+const hasHiddenGames = computed(() => hiddenGames.value.size > 0)
+const visibleGames = computed(() => {
+    return games.value.filter(game => !hiddenGames.value.has(game.steam_id))
+})
 
 const pagination = reactive<PaginationData>({
     current_page: 1,
@@ -91,7 +96,7 @@ const fetchGames = async () => {
         }
 
         const data = await response.json()
-        games.value = filterHiddenGames(data.games)
+        games.value = data.games
         pagination.total_pages = data.pagination.total_pages
         pagination.page_size = data.pagination.page_size
         pagination.total_games = data.pagination.total_games
@@ -174,12 +179,6 @@ const addTag = (tag: string) => {
     }
 }
 
-const hideGame = (steamId: string) => {
-    hiddenGames.value.add(steamId)
-    localStorage.setItem('hidden-games', JSON.stringify([...hiddenGames.value]))
-    games.value = filterHiddenGames(games.value)
-}
-
 const loadHiddenGames = () => {
     const saved = localStorage.getItem('hidden-games')
     if (!saved)
@@ -189,8 +188,14 @@ const loadHiddenGames = () => {
     hiddenGames.value = new Set(hiddenArray)
 }
 
-const filterHiddenGames = (gamesList: GameData[]) => {
-    return gamesList.filter(game => !hiddenGames.value.has(game.steam_id))
+const hideGame = (steamId: string) => {
+    hiddenGames.value.add(steamId)
+    localStorage.setItem('hidden-games', JSON.stringify([...hiddenGames.value]))
+}
+
+const clearHidden = () => {
+    hiddenGames.value.clear()
+    localStorage.setItem('hidden-games', JSON.stringify([]))
 }
 
 const showPagination = () => {
@@ -225,15 +230,12 @@ onMounted(async () => {
         {{ error }}
     </div>
 
-    <Pagination v-if="showPagination()" :pagination="pagination" @go-to-page="goToPage">
+    <Pagination v-if="showPagination()" :pagination="pagination" :hasHiddenGames="hasHiddenGames" @go-to-page="goToPage" @clear-hidden="clearHidden">
     </Pagination>
 
-    <game v-for="(game, index) in games" :key="`game-${game.steam_id || index}`" :game="game"
+    <game v-for="(game, index) in visibleGames" :key="`game-${game.steam_id || index}`" :game="game"
         :getCurrencyPrice="getCurrencyPrice" @add-tag="addTag" @hide-game="hideGame">
     </game>
-
-    <Pagination v-if="showPagination()" :pagination="pagination" @go-to-page="goToPage">
-    </Pagination>
 </template>
 
 <style>

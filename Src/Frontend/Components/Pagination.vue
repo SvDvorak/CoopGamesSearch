@@ -2,14 +2,19 @@
 import { PaginationData } from './Types.ts'
 
 interface Props {
-    pagination: PaginationData
+    pagination: PaginationData,
+    hasHiddenGames: boolean
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits(['go-to-page'])
+const emit = defineEmits(['go-to-page', 'clear-hidden'])
 
 const goToPage = (page: number) => {
     emit('go-to-page', page)
+}
+
+const clearHidden = () => {
+    emit('clear-hidden')
 }
 </script>
 
@@ -27,6 +32,11 @@ const goToPage = (page: number) => {
                 Next
             </button>
         </div>
+        <button
+            :disabled="!hasHiddenGames"
+            @click="clearHidden()">
+            Clear hidden
+        </button>
         <div class="pagination-info">
             Page {{ pagination.current_page }} of {{ pagination.total_pages }} 
             ({{ pagination.total_games }} games total)
