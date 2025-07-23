@@ -18,10 +18,7 @@ const countries = ref<CountryData[]>([])
 const hiddenGames = ref<Set<string>>(new Set())
 const totalGames = ref<number>(0)
 
-const visibleGames = computed(() => {
-    return games.value.filter(game => !hiddenGames.value.has(game.steam_id))
-})
-
+const visibleGames = computed(() => filterVisibleGames(games.value))
 const visibleGamesCount = computed(() => (totalGames.value - games.value.length) + visibleGames.value.length)
 const hiddenGamesCount = computed(() => games.value.length - visibleGames.value.length )
 
@@ -70,6 +67,10 @@ const setDefaultCountryFromLocale = () => {
     }
 }
 
+const filterVisibleGames = (gamesList) => {
+    return gamesList.filter(game => !hiddenGames.value.has(game.steam_id))
+} 
+
 const validFilters = () => {
     return filters.min_supported_players &&
         filters.max_supported_players &&
@@ -94,6 +95,9 @@ const fetchGames = async () => {
         const data = await response.json()
         games.value = games.value.concat(data.games)
         totalGames.value = data.total_games
+        // If most of the returned games were filtered out, then fetch some more
+        if((data.games.length - filterVisibleGames(data.games).length) > 5)
+            await fetchGames();
     } catch (err: any) {
         console.error('Error fetching games:', err)
         error.value = err.message || 'Failed to load games. Please try again.'
