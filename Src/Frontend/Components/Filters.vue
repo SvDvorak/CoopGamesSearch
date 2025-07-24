@@ -8,7 +8,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
-const emit = defineEmits(['update-filters', 'add-tag'])
+const emit = defineEmits(['update-results', 'add-tag'])
 
 const tagInput = ref('')
 
