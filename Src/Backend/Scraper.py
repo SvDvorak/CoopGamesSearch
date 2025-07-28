@@ -1,25 +1,25 @@
-import json
 import requests
 import time
 from bs4 import BeautifulSoup
 from datetime import datetime
+from Database import Database, GameCountryData
 from Game import Game
 from Price import Price
 from GameStorage import load_countries_from_file
 
 class Scraper:
-	def __init__(self):
+	def __init__(self, database: Database):
+		self.database = database
 		self.scraping_state = "None"
 		self.scraping_start_year = 1988
 		self.scraping_end_year = datetime.now().year 
 		self.country_codes = load_countries_from_file("../Countries.json")
 		self.steam_delay = 2  # Delay between Steam API requests
 
-	def scrape_games(self, last_scrape_time):
+	async def scrape_games(self, last_scrape_time: float):
 		self.last_scrape_time = last_scrape_time
 		self.scraping_state = "Finding games"
 		games = self.fetch_coop_games()
-		
 		games = self.remove_duplicates(games)
 
 		count = len(games)
@@ -36,11 +36,10 @@ class Scraper:
 			self.add_rating(game)
 			self.add_tags(game)
 			i += 1
+			await self.database.save_game(game)
 			time.sleep(self.steam_delay)
 
-		games = list(filter(lambda x: not x.is_removed, games))
-
-		return games
+		return await self.database.get_total_games_count(), count
 	
 	def fetch_coop_games(self):
 		all_games = []
@@ -167,33 +166,36 @@ class Scraper:
 		except:
 			return
 
-	def scrape_prices(self, games):
-		game_ids = [str(game.steam_id) for game in games]
+	async def scrape_country_data(self):
+		steam_ids = await self.database.get_all_steam_ids()
 		batch_size = 200
 
-		print(f"Fetching prices for {len(game_ids)} games")
-		for i in range(0, len(game_ids), batch_size):
-			self.scraping_state = f"Getting prices ({i}/{len(game_ids)})"
-			batch = game_ids[i:i+batch_size]
-			batch_games = games[i:i+batch_size]
-			game_ids_str = ",".join(batch)
+		print(f"Fetching country data (prices, delistings) for {len(steam_ids)} games")
+		for i in range(0, len(steam_ids), batch_size):
+			self.scraping_state = f"Getting prices ({i}/{len(steam_ids)})"
+			batch = steam_ids[i:i+batch_size]
+			steam_ids_str = ",".join([str(steam_id) for steam_id in batch])
+
+			countries_data: dict[int, GameCountryData] = {}
+			for steam_id in batch:
+				countries_data[steam_id] = GameCountryData()
 
 			for country in self.country_codes:
 				url = f"https://store.steampowered.com/api/appdetails"
-				params = {"appids": game_ids_str, "cc": country.code, "filters": "price_overview"}
+				params = {"appids": steam_ids_str, "cc": country.code, "filters": "price_overview"}
 				game_data = self.try_request(url, params=params).json()
-				for game in batch_games:
-					game_response = game_data[str(game.steam_id)]
-					game.delisted[country.code] = False
+
+				for steam_id in batch:
+					game_response = game_data[str(steam_id)]
 					
 					if not game_response.get("success", False):
 						# If we can't get the game at all, assume it's delisted in this country
-						game.delisted[country.code] = True
+						countries_data[steam_id].delist(country.code)
 						continue
 					
-					# TODO remove
+					# TODO remove, never happens
 					if "data" not in game_response:
-						print(f"!!!!! No data field for {game.title} ({game.steam_id}) in {country.code}")
+						print(f"!!!!! No data field for steam id {steam_id} in {country.code}")
 						continue
 
 					data = game_response["data"]
@@ -202,13 +204,12 @@ class Scraper:
 						continue
 
 					price_info = data["price_overview"]
-					game.prices[country.code] = Price(
-						price_info["initial"],
-						price_info["final"])
+					price = Price(price_info["initial"], price_info["final"])
+					countries_data[steam_id].add_price(country.code, price)
 
 				time.sleep(self.steam_delay)
 
-		return games
+			await self.database.save_country_data(countries_data)
 		
 	def try_request(self, url, params=None, retries=15):
 		for attempt in range(retries):

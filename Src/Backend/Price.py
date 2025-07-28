@@ -13,6 +13,7 @@ class Price:
             "final": self.final,
         }
     
+	# TODO Remove when JSON persistance is removed
     @classmethod
     def from_dict(cls, data):   
         return cls(

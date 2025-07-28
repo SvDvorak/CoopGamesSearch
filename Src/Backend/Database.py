@@ -1,12 +1,66 @@
 import asyncio
 import json
-import os
 import aiosqlite
+from Price import Price
 from os import listdir
 from os.path import isfile, join
 from datetime import date, datetime
 from GameStorage import load_games_from_file
 from Game import Game
+
+class Filters:
+    def __init__(self,
+                 country_code: str,
+                 min_supported_players: int,
+                 max_supported_players: int, 
+                 player_type: str,
+                 free_games: bool,
+                 unreleased_games: bool,
+                 from_date: date, 
+                 to_date: date,
+                 min_reviews: int,
+                 search_tags: list[str]):
+        self.country_code = country_code
+        self.min_supported_players = min_supported_players
+        self.max_supported_players = max_supported_players
+        self.player_type = player_type
+        self.free_games = free_games
+        self.unreleased_games = unreleased_games
+        self.from_date = from_date
+        self.to_date = to_date
+        self.min_reviews = min_reviews
+        self.search_tags = search_tags
+
+class Scoring:
+    def __init__(self,
+                 rating_weight: float,
+                 price_weight: float,
+                 sale_weight: float, 
+                 number_of_reviews_weight: float,
+                 high_price: float):
+        self.rating_weight = rating_weight
+        self.price_weight = price_weight
+        self.sale_weight = sale_weight
+        self.number_of_reviews_weight = number_of_reviews_weight
+        self.high_price = high_price
+
+class Pagination:
+    def __init__(self,
+                 limit: int,
+                 offset: int):
+        self.limit = limit
+        self.offset = offset
+
+class GameCountryData:
+    def __init__(self):
+        self.prices: dict[str, Price] = { }      # Prices for each country (country code)
+        self.delisted: set[str] = set()          # Countries game is delisted in (country code)
+
+    def delist(self, country_code: str):
+        self.delisted.add(country_code)
+
+    def add_price(self, country_code: str, price: Price):
+        self.prices[country_code] = price
 
 class Database:
     migrationsFolder = "Migrations"
@@ -50,23 +104,9 @@ class Database:
         return sorted(files, key=lambda x: x["version"])
 
     async def get_games(self,
-        country_code: str,
-        min_supported_players: int,
-        max_supported_players: int,
-        player_type: str,
-        free_games: bool,
-        unreleased_games: bool,
-        from_date: date,
-        to_date: date,
-        min_reviews: int,
-        search_tags: list[str],
-        offset: int,
-        limit: int,
-        rating_weight: float,
-        price_weight: float,
-        sale_weight: float,
-        number_of_reviews_weight: float,
-        high_price: float
+        filters: Filters,
+        scoring: Scoring,
+        pagination: Pagination
     ) -> list[Game]:
         conn = await self._connect()
         conn.row_factory = aiosqlite.Row
@@ -79,55 +119,55 @@ class Database:
         where_conditions.append("""
             g.steam_id NOT IN (SELECT steam_id FROM GameDelisted WHERE country_code = ?)
         """)
-        params.append(country_code)
+        params.append(filters.country_code)
         
         # Player count
-        if player_type.lower() == 'couch':
+        if filters.player_type.lower() == 'couch':
             where_conditions.append("g.couch_players BETWEEN ? AND ?")
-        elif player_type.lower() == 'lan':
+        elif filters.player_type.lower() == 'lan':
             where_conditions.append("g.lan_players BETWEEN ? AND ?")
         else:  # online
             where_conditions.append("g.online_players BETWEEN ? AND ?")
-        params.extend([min_supported_players, max_supported_players])
+        params.extend([filters.min_supported_players, filters.max_supported_players])
 
-        if not free_games:
+        if not filters.free_games:
             where_conditions.append("""
                 EXISTS (SELECT 1 FROM GamePrice gp WHERE gp.steam_id = g.steam_id 
                         AND gp.country_code = ? AND gp.final_price > 0)
             """)
-            params.append(country_code)
+            params.append(filters.country_code)
 
-        if not unreleased_games:
+        if not filters.unreleased_games:
             where_conditions.append("g.is_released = 1")
 
-        if min_reviews > 0:
+        if filters.min_reviews > 0:
             where_conditions.append("g.number_of_reviews >= ?")
-            params.append(min_reviews)
+            params.append(filters.min_reviews)
 
-        if search_tags:
-            for tag in search_tags:
+        if filters.search_tags:
+            for tag in filters.search_tags:
                 where_conditions.append("g.tags LIKE ?")
                 params.append(f'%"{tag.lower()}"%')
         
-        if from_date:
+        if filters.from_date:
             where_conditions.append("g.release_date >= ?")
-            params.append(from_date.strftime("%Y-%m-%d"))
-        if to_date:
+            params.append(filters.from_date.strftime("%Y-%m-%d"))
+        if filters.to_date:
             where_conditions.append("g.release_date <= ?")
-            params.append(to_date.strftime("%Y-%m-%d"))
+            params.append(filters.to_date.strftime("%Y-%m-%d"))
         
         where_clause = "WHERE " + " AND ".join(where_conditions)
 
         score_calculation = f"""
             (
-                (g.steam_rating * g.steam_rating) * {rating_weight} +
-                -(COALESCE(gp.final_price, 0) / 100.0 / {high_price}) * {price_weight} +
+                (g.steam_rating * g.steam_rating) * {scoring.rating_weight} +
+                -(COALESCE(gp.final_price, 0) / 100.0 / {scoring.high_price}) * {scoring.price_weight} +
                 CASE 
                     WHEN COALESCE(gp.initial_price, 0) > 0 
-                    THEN (1.0 - CAST(COALESCE(gp.final_price, 0) AS REAL) / COALESCE(gp.initial_price, 1)) * {sale_weight}
+                    THEN (1.0 - CAST(COALESCE(gp.final_price, 0) AS REAL) / COALESCE(gp.initial_price, 1)) * {scoring.sale_weight}
                     ELSE 0 
                 END +
-                (LOG(g.number_of_reviews + 1) / LOG(100000)) * {number_of_reviews_weight}
+                (LOG(g.number_of_reviews + 1) / LOG(100000)) * {scoring.number_of_reviews_weight}
             )
         """
 
@@ -146,7 +186,7 @@ class Database:
         """
 
         # Add country_code for price join as first parameter
-        all_params = [country_code] + params + [limit, offset]
+        all_params = [filters.country_code] + params + [pagination.limit, pagination.offset]
         await cursor.execute(query, all_params)
 
         games = []
@@ -165,12 +205,21 @@ class Database:
         cursor = await conn.cursor()
 
         for game in games:
-            await self.save_game(game, cursor)
+            await self.save_game_batch(game, cursor)
+
+        await conn.commit()
+        await conn.close()
+    
+    async def save_game(self, game: Game):
+        conn = await self._connect()
+        cursor = await conn.cursor()
+
+        await self.save_game_batch(game, cursor)
 
         await conn.commit()
         await conn.close()
 
-    async def save_game(self, game: Game, cursor: aiosqlite.Cursor):
+    async def save_game_batch(self, game: Game, cursor: aiosqlite.Cursor):
         await cursor.execute("""
                INSERT INTO Game (
                     title, steam_id, steam_rating, number_of_reviews, release_date,
@@ -199,39 +248,50 @@ class Database:
                 game.cooptimus_url, game.steam_url, game.header_image,
                 game.short_description, json.dumps(game.tags), game.is_released
             ))
-            
-        for country_code, price in game.prices.items():
-            await cursor.execute("""
-                    INSERT OR REPLACE INTO GamePrice (steam_id, country_code, initial_price, final_price)
-                    VALUES (?, ?, ?, ?)
-                """, (game.steam_id, country_code, price.initial, price.final))
 
-        await cursor.execute("DELETE FROM GameDelisted WHERE steam_id = ?", (game.steam_id,))
-        for country_code, is_delisted in game.delisted.items():
-            if is_delisted:
+        # TODO temp
+        print(f"Imported {game.title}")
+
+    async def save_country_data(self, countries_data: dict[int, GameCountryData]):
+        conn = await self._connect()
+        cursor = await conn.cursor()
+
+        for steam_id, country_data in countries_data.items():
+            for country_code, price in country_data.prices.items():
+                await cursor.execute("""
+                        INSERT OR REPLACE INTO GamePrice (steam_id, country_code, initial_price, final_price)
+                        VALUES (?, ?, ?, ?)
+                    """, (steam_id, country_code, price.initial, price.final))
+
+            await cursor.execute("DELETE FROM GameDelisted WHERE steam_id = ?", (steam_id,))
+            for country_code in country_data.delisted:
                 await cursor.execute("""
                         INSERT OR REPLACE INTO GameDelisted (steam_id, country_code)
                         VALUES (?, ?)
-                    """, (game.steam_id, country_code))
+                    """, (steam_id, country_code))
 
-        print(f"Imported {game.title}")
+        await conn.commit()
+        await conn.close()
+
+        # TODO temp
+        print(f"Saved {len(countries_data)} prices")
+
     
-    def _row_to_game(self, row, country_code: str = None) -> Game:
-        #row_dict = dict(row)
-        #print(json.dumps(row_dict, indent=2, default=str))
+    def _row_to_game(self, row) -> Game:
         game = Game()
         game.title = row['title']
-        game.steam_id = row['steam_id']
-        game.steam_rating = row['steam_rating']
-        game.number_of_reviews = row['number_of_reviews']
-        game.couch_players = row['couch_players']
-        game.lan_players = row['lan_players']
-        game.online_players = row['online_players']
+        game.steam_id = int(row['steam_id'])
+        game.steam_rating = float(row['steam_rating'])
+        game.number_of_reviews = int(row['number_of_reviews'])
+        game.couch_players = int(row['couch_players'])
+        game.lan_players = int(row['lan_players'])
+        game.online_players = int(row['online_players'])
         game.cooptimus_url = row['cooptimus_url']
         game.steam_url = row['steam_url']
         game.header_image = row['header_image']
         game.short_description = row['short_description']
         game.is_released = bool(row['is_released'])
+        game.score = float(row['calculated_score'])
         
         if row['release_date']:
             game.release_date = datetime.strptime(row['release_date'], "%Y-%m-%d").date()
@@ -239,21 +299,65 @@ class Database:
         game.tags = json.loads(row['tags']) if row['tags'] else []
         
         # Add price if country_code provided and price data exists in row
-        #if country_code and 'initial_price' in row.keys() and row['initial_price'] is not None:
-            #game.prices[country_code] = Price(row['initial_price'], row['final_price'])
+        if 'initial_price' in row.keys() and row['initial_price'] is not None:
+            game.price = Price(row['initial_price'], row['final_price'])
         
         return game
 
+    async def get_total_games_count(self) -> int:
+        conn = await self._connect()
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT COUNT(*) FROM Game")
+        count = (await cursor.fetchone())[0]
+        await conn.close()
+        return count
+
+    async def get_all_steam_ids(self) -> list[int]:
+        conn = await self._connect()
+        cursor = await conn.cursor()
+        await cursor.execute("SELECT steam_id FROM Game")
+        rows = await cursor.fetchall()
+        steam_ids = [row[0] for row in rows]
+        await conn.close()
+        return steam_ids
+
+
+# TODO REMOVE TESTING STUFF
 def get_date(dateStr):
     return datetime.strptime(dateStr, "%Y-%m-%d").date()
 
 async def test():
     db = Database()
     await db.init_database()
-    games, count = await db.get_games("SE", 0, 12, "LAN", False, False, get_date("1990-01-01"), get_date("2025-08-20"), 50, [], 0, 10, 1, 0, 0.0, 0.0, 20)
+    
+    filters = Filters(
+        country_code="SE",
+        min_supported_players=10,
+        max_supported_players=12,
+        player_type="LAN",
+        free_games=False,
+        unreleased_games=False,
+        from_date=get_date("1990-01-01"),
+        to_date=get_date("2025-08-20"),
+        min_reviews=50,
+        search_tags=[]
+    )
+    
+    scoring = Scoring(
+        rating_weight=1,
+        price_weight=0,
+        sale_weight=0.0,
+        number_of_reviews_weight=0.0,
+        high_price=20
+    )
+    
+    pagination = Pagination(limit=10, offset=9)
+    
+    games, count = await db.get_games(filters, scoring, pagination)
     for game in games:
         print(f"{game.title} - {game.steam_rating}")
     print(f"Total: {count}")
     #await db.save_games(load_games_from_file())
     
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(test())

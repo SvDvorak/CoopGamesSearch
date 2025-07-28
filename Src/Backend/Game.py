@@ -1,16 +1,15 @@
 
 import math
-from datetime import datetime
+from datetime import datetime, date
 from Price import Price
 
 class Game:
 	title: str = ""
 	steam_id: int = -1					# Steam's app ID
-	prices = {}							# Prices per region (country code as key, Price object as value)
-	delisted = {}						# Delisted countries (country code as key)
+	price: Price = None					# Price for region that was requested. Used during game retrieval.
 	steam_rating: float = 0				# 0.0–1.0 float (e.g., 0.85)
 	number_of_reviews: int = 0
-	release_date: str = None			# Date time
+	release_date: date = None			# Date time
 	couch_players: int = 0				# Supported couch players
 	lan_players: int = 0				# Supported LAN players
 	online_players: int = 0				# Supported online players
@@ -18,40 +17,18 @@ class Game:
 	steam_url: str = ""
 	header_image: str = None
 	short_description: str = ""
-	tags = []
-
+	tags: list[str] = []
 	is_released: bool = True
-	is_removed: bool = True
-	score: float = 0					# Algorithm scoring
-	
-	def compute_score(self, rating_weight, price_weight, sale_weight, number_of_reviews_weight, high_price, country_code):
-		price = self.get_price(country_code)
-		rating_score = (self.steam_rating ** 2) * rating_weight
-		price_score = -(price.final / 100.0 / high_price) * price_weight
-		sale_score = (1 - price.final / price.initial) * sale_weight if price.initial > 0 else 0
-		high_number_of_reviews = 10000
-		number_of_reviews_score = (math.log(self.number_of_reviews + 1) / math.log(high_number_of_reviews)) * number_of_reviews_weight
+	score: float = 0  					# Calculated score when retrieved
 
-		self.score = rating_score + price_score + sale_score + number_of_reviews_score
-		#return review_score ** 2 / math.log(price + 2)  # your scoring formula
-
-	def get_price(self, country_code):
-		if country_code in self.prices:
-			return self.prices[country_code]
-		else:
-			return Price(0, 0)
-		
-	def is_listed_in_country(self, country_code):
-		if country_code in self.delisted:
-			return False
-		return True
+	is_removed: bool = True 			# Only used temporarily while scraping, games with this set to true will be discarded
 	
 	def to_dict(self):
 		return {
 			"title": self.title,
 			"steam_id": self.steam_id,
 			"score": self.score,
-			"prices": {country_code: price.to_dict() for country_code, price in self.prices.items()},
+			"price": self.price.to_dict() if self.price != None else None,
 			"steam_rating": self.steam_rating,
 			"number_of_reviews": self.number_of_reviews,
 			"is_released": self.is_released,
@@ -65,15 +42,8 @@ class Game:
 			"short_description": self.short_description,
 			"tags": self.tags,
 		}
-	
-	def sendable_dict(self, country_code):
-		sendable = self.to_dict()
-		price = self.prices[country_code] if country_code in self.prices else None
-		sendable.pop("prices", None)
-		sendable.pop("delisted", None)
-		sendable["price"] = price.to_dict() if price else None
-		return sendable
 
+	# TODO Remove when JSON persistance is removed
 	@classmethod
 	def from_dict(cls, data):
 		obj = cls()

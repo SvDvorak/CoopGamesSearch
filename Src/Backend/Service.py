@@ -1,16 +1,27 @@
+from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
-from Game import Game
 from datetime import datetime, date
 from Scraper import Scraper
 from ScrapingThread import ScrapingThread
-from fastapi.staticfiles import StaticFiles
-from Database import Database, SearchParams
+from Database import Database, Filters, Pagination, Scoring
 
-app = FastAPI()
+allow_manual_scrape = True # If True, allows manual scraping via API endpoint
+
+database = Database()
+scraper = Scraper(database)
+scrapingThread = ScrapingThread(scraper, scrape_interval_hours=12)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+	await database.init_database()
+	scrapingThread.start_continuous_scraping()
+	yield
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
 	CORSMiddleware,
@@ -25,29 +36,8 @@ app.add_middleware(
 	allow_headers=["*"],
 )
 
-games_file = "games.json"
-allow_manual_scrape = True # If True, allows manual scraping via API endpoint
-
-scraper = Scraper()
-scrapingThread = ScrapingThread(scraper, games_file, scrape_interval_hours=12)
-
 # Serve static files (HTML, CSS, JS)
 app.mount("/static", StaticFiles(directory="."), name="static")
-
-database = Database()
-scrapingThread.start_continuous_scraping()
-
-def is_within_date_range(game, from_date, to_date):
-	if not game.release_date:
-		return False
-
-	if from_date and game.release_date < from_date:
-		return False
-	
-	if to_date and game.release_date > to_date:
-		return False
-	
-	return True
 
 def validate_date_string(date_str, param_name) -> date:
 	try:
@@ -95,25 +85,6 @@ def validate_country_code(country_code):
 def ceiling_division(a, b):
 	return -(a // -b)
 
-def matches_players(game, min_players, max_players, player_type):
-	player_type = player_type.lower()
-	if player_type == 'couch':
-		return game.couch_players >= min_players and game.couch_players <= max_players
-	elif player_type == 'lan':
-		return game.lan_players >= min_players and game.lan_players <= max_players
-	else:
-		return game.online_players >= min_players and game.online_players <= max_players
-
-def matches_tags(game, search_tags):
-	if not search_tags:
-		return True
-	
-	if not game.tags:
-		return False
-	
-	game_tags_lower = [tag.lower() for tag in game.tags]
-	return all(tag in game_tags_lower for tag in search_tags)
-
 @app.get("/games")
 async def get_games(min_supported_players: Optional[int] = 1, 
 				   max_supported_players: Optional[int] = 100,
@@ -122,14 +93,14 @@ async def get_games(min_supported_players: Optional[int] = 1,
 				   unreleased_games: Optional[bool] = True,
 				   release_date_from: Optional[str] = '1988-08-20',						# YYYY-MM-DD format
 				   release_date_to: Optional[str] = date.today().strftime("%Y-%m-%d"),	# YYYY-MM-DD format
+				   min_reviews: Optional[int] = 0,										# Minimum number of reviews required
+				   tags: Optional[str] = None,											# Pipe-separated list of tags
 				   rating_weight: Optional[float] = 0.7,								# How much game the rating is taken into account
 				   price_weight: Optional[float] = 0.3,									# How much price is taken into account
 				   sale_weight: Optional[float] = 0.0,									# How much sale is taken into account
 				   number_of_reviews_weight: Optional[float] = 0.0,						# How much number of reviews is taken into account
 				   high_price: Optional[float] = 20,									# What an "expensive" game classifies as
-				   min_reviews: Optional[int] = 0,										# Minimum number of reviews required
-				   tags: Optional[str] = None,											# Pipe-separated list of tags
-				   next_index: Optional[int] = 1,										# Index of the first game in the response, used for pagination
+				   next_index: Optional[int] = 0,										# Index of the first game in the response, used for pagination
 				   country_code: Optional[str] = "SE"):									
 	
 	from_date = validate_date_string(release_date_from, "release_date_from")
@@ -143,54 +114,38 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	search_tags = []
 	if tags:
 		search_tags = [tag.strip().lower() for tag in tags.split('|') if tag.strip()]
-	
-	filtered_games = await database.get_games(
-		country_code,
-		min_supported_players,
-		max_supported_players,
-		player_type,
-		free_games,
-		unreleased_games,
-		from_date,
-		to_date,
-		min_reviews,
-		search_tags,
-		rating_weight,
-		price_weight,
-		sale_weight,
-		number_of_reviews_weight,
-		high_price
-	)
-	#games = scrapingThread.get_games()
-	#filtered_games = [game for game in games if
-					#game.is_listed_in_country(country_code) and
-					#(matches_players(game, min_supported_players, max_supported_players, player_type) and
-					#(free_games or game.get_price(country_code).final > 0) and
-					#(unreleased_games or game.is_released) and
-					#(game.number_of_reviews >= min_reviews) and
-					#is_within_date_range(game, from_date, to_date) and
-					#matches_tags(game, search_tags))]
 
-	for game in filtered_games:
-		game.compute_score(rating_weight, price_weight, sale_weight, number_of_reviews_weight, high_price, country_code)
-	
-	# Sort by score (highest first)
-	filtered_games.sort(key=lambda x: x.score, reverse=True)
-	
+	filters = Filters(
+		country_code=country_code,
+		min_supported_players=min_supported_players,
+		max_supported_players=max_supported_players,
+		player_type=player_type,
+		free_games=free_games,
+		unreleased_games=unreleased_games,
+		from_date=from_date,
+		to_date=to_date,
+		min_reviews=min_reviews,
+		search_tags=search_tags
+	)
+    
+	scoring = Scoring(
+		rating_weight=rating_weight,
+		price_weight=price_weight,
+		sale_weight=sale_weight,
+		number_of_reviews_weight=number_of_reviews_weight,
+		high_price=high_price
+	)
+
 	max_games_returned = 10
-	start_index = next_index
-	paginated_games = []
-	# Clamping between 0 and max_games_returned, ensuring we don't go outside the filtered results
-	games_to_return = max(0, min(max_games_returned, len(filtered_games) - start_index))
-	end_index = start_index + games_to_return
-	if(games_to_return > 0):
-		paginated_games = filtered_games[start_index:end_index]
+	pagination = Pagination(limit=max_games_returned, offset=next_index)
+
+	games, total_count = await database.get_games(filters, scoring, pagination)
 	
 	status = scrapingThread.get_status()
 	
 	return {
-		"games": [game.sendable_dict(country_code) for game in paginated_games],
-		"total_games": len(filtered_games),
+		"games": [game.to_dict() for game in games],
+		"total_games": total_count,
 		"scraping_in_progress": status["scraping_in_progress"],
 		"last_scrape_hours_ago": status["last_scrape_hours_ago"]
 	}

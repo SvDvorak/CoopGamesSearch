@@ -11,18 +11,13 @@ def load_from_file(file_path):
 		print(f"\n{file_path} not found. Starting with empty games list.")
 		return []
 	except Exception as e:
-		print(f"\nError loading games from {games_file}: {e}")
+		print(f"\nError loading games from {file_path}: {e}")
 		return []
 
 def load_games_from_file(games_file="games.json"):
 	data = load_from_file(games_file)
 	print(f"\nLoaded {len(data)} games from {games_file}")
 	return [Game.from_dict(item) for item in data]
-
-def save_games_to_file(games, games_file="games.json"):
-	with open(games_file, "w", encoding="utf-8") as f:
-		json.dump([g.to_dict() for g in games], f, ensure_ascii=False, indent=2)
-	print(f"\nSaved {len(games)} games to {games_file}")
 
 def load_countries_from_file(countries_file="countries.json"):
 	data = load_from_file(countries_file)
