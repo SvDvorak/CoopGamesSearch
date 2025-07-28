@@ -13,20 +13,6 @@ class ScrapingThread:
 		self.games = []
 
 		self.continuous_thread = None
-		
-	def load_games(self):
-		initial_games = load_games_from_file(self.games_file)
-		self.set_games(initial_games)
-	
-	def get_games(self):
-		"""Get current games list (thread-safe)"""
-		with self.games_lock:
-			return self.games.copy()
-
-	def set_games(self, new_games):
-		"""Set games list (thread-safe)"""
-		with self.games_lock:
-			self.games = new_games
 
 	def get_status(self):
 		return {

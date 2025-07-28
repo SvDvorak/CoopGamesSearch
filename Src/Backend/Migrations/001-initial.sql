@@ -22,19 +22,17 @@ CREATE TABLE Game (
 );
 
 CREATE TABLE GamePrice (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_id INTEGER REFERENCES Game(id),
+    steam_id INTEGER REFERENCES Game(steam_id) NOT NULL,
     country_code TEXT NOT NULL,
     initial_price INTEGER DEFAULT 0,
     final_price INTEGER DEFAULT 0,
-    UNIQUE(game_id, country_code)
+    PRIMARY KEY (steam_id, country_code)
 );
 
 CREATE TABLE GameDelisted (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    game_id INTEGER REFERENCES Game(id),
+    steam_id INTEGER REFERENCES Game(steam_id) NOT NULL,
     country_code TEXT NOT NULL,
-    UNIQUE(game_id, country_code)
+    PRIMARY KEY (steam_id, country_code)
 );
 
 --------------------------------------------------------------------------------

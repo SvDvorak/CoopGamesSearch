@@ -8,6 +8,7 @@ from datetime import datetime, date
 from Scraper import Scraper
 from ScrapingThread import ScrapingThread
 from fastapi.staticfiles import StaticFiles
+from Database import Database, SearchParams
 
 app = FastAPI()
 
@@ -33,7 +34,7 @@ scrapingThread = ScrapingThread(scraper, games_file, scrape_interval_hours=12)
 # Serve static files (HTML, CSS, JS)
 app.mount("/static", StaticFiles(directory="."), name="static")
 
-scrapingThread.load_games()
+database = Database()
 scrapingThread.start_continuous_scraping()
 
 def is_within_date_range(game, from_date, to_date):
@@ -48,7 +49,7 @@ def is_within_date_range(game, from_date, to_date):
 	
 	return True
 
-def validate_date_string(date_str, param_name):
+def validate_date_string(date_str, param_name) -> date:
 	try:
 		return datetime.strptime(date_str, "%Y-%m-%d").date()
 	except ValueError:
@@ -143,15 +144,32 @@ async def get_games(min_supported_players: Optional[int] = 1,
 	if tags:
 		search_tags = [tag.strip().lower() for tag in tags.split('|') if tag.strip()]
 	
-	games = scrapingThread.get_games()
-	filtered_games = [game for game in games if
-					game.is_listed_in_country(country_code) and
-					(matches_players(game, min_supported_players, max_supported_players, player_type) and
-					(free_games or game.get_price(country_code).final > 0) and
-					(unreleased_games or game.is_released) and
-					(game.number_of_reviews >= min_reviews) and
-					is_within_date_range(game, from_date, to_date) and
-					matches_tags(game, search_tags))]
+	filtered_games = await database.get_games(
+		country_code,
+		min_supported_players,
+		max_supported_players,
+		player_type,
+		free_games,
+		unreleased_games,
+		from_date,
+		to_date,
+		min_reviews,
+		search_tags,
+		rating_weight,
+		price_weight,
+		sale_weight,
+		number_of_reviews_weight,
+		high_price
+	)
+	#games = scrapingThread.get_games()
+	#filtered_games = [game for game in games if
+					#game.is_listed_in_country(country_code) and
+					#(matches_players(game, min_supported_players, max_supported_players, player_type) and
+					#(free_games or game.get_price(country_code).final > 0) and
+					#(unreleased_games or game.is_released) and
+					#(game.number_of_reviews >= min_reviews) and
+					#is_within_date_range(game, from_date, to_date) and
+					#matches_tags(game, search_tags))]
 
 	for game in filtered_games:
 		game.compute_score(rating_weight, price_weight, sale_weight, number_of_reviews_weight, high_price, country_code)
