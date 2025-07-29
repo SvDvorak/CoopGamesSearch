@@ -5,7 +5,6 @@ from Price import Price
 from os import listdir
 from os.path import isfile, join
 from datetime import date, datetime
-from GameStorage import load_games_from_file
 from Game import Game
 
 class Filters:

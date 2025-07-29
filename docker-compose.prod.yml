@@ -8,6 +8,8 @@ services:
     image: coop-games
     volumes:
       - ./Src/Backend/games.db:/app/Backend/games.db
+    environment:
+      PYTHONUNBUFFERED: 1
 
 # Uses external network with routing
 networks:
