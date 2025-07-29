@@ -37,7 +37,8 @@ class Scraper:
 			self.add_tags(game)
 			i += 1
 			await self.database.save_game(game)
-			time.sleep(self.steam_delay)
+			# We're hitting steam twice with both details and ratings
+			time.sleep(self.steam_delay * 2)
 
 		return await self.database.get_total_games_count(), count
 	
