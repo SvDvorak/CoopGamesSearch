@@ -1,3 +1,8 @@
+<p align="center">
+  <img src="https://coopgames.anwilc.com/logo" alt="Logo" width="150" />
+</p>
+<br>
+
 # Co-op Games Search
 
 A web application for finding co-operative games by player count, price, and Steam ratings. Scrapes game data from Co-Optimus and Steam APIs to build a searchable database of co-op games.
