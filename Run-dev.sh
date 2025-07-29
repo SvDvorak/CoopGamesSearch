@@ -1,5 +1,9 @@
 cd Src/Frontend
-npm run build:watch &
+npm run build
 
 cd ../Backend
-uvicorn Service:app --host 0.0.0.0 --port 80
+pip install -r requirements.txt
+uvicorn Service:app --host 0.0.0.0 --port 80 &
+
+cd ../Frontend
+npm run build:watch

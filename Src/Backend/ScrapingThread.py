@@ -4,7 +4,7 @@ import time
 from Scraper import Scraper
 
 class ScrapingThread:
-	def __init__(self, scraper: Scraper, scrape_interval_hours):
+	def __init__(self, scraper: Scraper, scrape_interval_hours: int):
 		self.scraper = scraper
 		self.scrape_interval_hours = scrape_interval_hours
 		self.scraping_in_progress = False

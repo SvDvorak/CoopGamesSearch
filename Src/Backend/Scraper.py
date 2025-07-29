@@ -220,7 +220,7 @@ class Scraper:
 				return response
 			except requests.RequestException as e:
 				print(f"Request failed ({attempt + 1}/{retries}): {e}")
-				time.sleep(2 ** attempt)
+				time.sleep(self.steam_delay ** attempt)
 		raise Exception(f"Failed to fetch {url} after {retries} attempts")
 
 	invalid_steam_id_mappings = {

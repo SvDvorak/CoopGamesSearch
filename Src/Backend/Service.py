@@ -10,10 +10,11 @@ from ScrapingThread import ScrapingThread
 from Database import Database, Filters, Pagination, Scoring
 
 allow_manual_scrape = True # If True, allows manual scraping via API endpoint
+scrape_interval_hours = 12
 
 database = Database()
 scraper = Scraper(database)
-scrapingThread = ScrapingThread(scraper, scrape_interval_hours=12)
+scrapingThread = ScrapingThread(scraper, scrape_interval_hours)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
