@@ -2,6 +2,7 @@ import json
 from Game import Game
 from Country import Country
 
+# TODO Remove all this, since we're using DB
 def load_from_file(file_path):
 	try:
 		with open(file_path, "r", encoding="utf-8") as f:
