@@ -6,6 +6,7 @@ from os import listdir
 from os.path import isfile, join
 from datetime import date, datetime
 from Game import Game
+from dprint import dprint
 
 class Filters:
     def __init__(self,
@@ -92,9 +93,9 @@ class Database:
                     await conn.executescript(up_section)
                     await conn.commit()
                 version = running_version
-                print(f"Ran migration {version:03d}")
+                dprint(f"Ran migration {version:03d}")
             except Exception as e:
-                print(f"ERROR! Unable to run migration {running_version:03d}: {e}")
+                dprint(f"ERROR! Unable to run migration {running_version:03d}: {e}")
         await cursor.execute("PRAGMA user_version = {v:d}".format(v=version))
     
     def get_migration_files(self, version: int) -> list:
@@ -249,7 +250,7 @@ class Database:
             ))
 
         # TODO temp
-        print(f"Imported {game.title}")
+        dprint(f"Imported {game.title}")
 
     async def save_country_data(self, countries_data: dict[int, GameCountryData]):
         conn = await self._connect()
@@ -273,7 +274,7 @@ class Database:
         await conn.close()
 
         # TODO temp
-        print(f"Saved {len(countries_data)} prices")
+        dprint(f"Saved {len(countries_data)} prices")
 
     
     def _row_to_game(self, row) -> Game:
@@ -354,8 +355,8 @@ async def test():
     
     games, count = await db.get_games(filters, scoring, pagination)
     for game in games:
-        print(f"{game.title} - {game.steam_rating}")
-    print(f"Total: {count}")
+        dprint(f"{game.title} - {game.steam_rating}")
+    dprint(f"Total: {count}")
     #await db.save_games(load_games_from_file())
     
 if __name__ == "__main__":

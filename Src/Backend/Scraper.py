@@ -6,6 +6,7 @@ from Database import Database, GameCountryData
 from Game import Game
 from Price import Price
 from GameStorage import load_countries_from_file
+from dprint import dprint
 
 class Scraper:
 	def __init__(self, database: Database):
@@ -66,7 +67,7 @@ class Scraper:
 
 				games.append(g)
 			except Exception as e:
-				print(f"Failed to parse game entry: {e}")
+				dprint(f"Failed to parse game entry: {e}")
 		
 		return games
 	
@@ -74,22 +75,22 @@ class Scraper:
 		all_games = []
 		for year in range(self.scraping_start_year, self.scraping_end_year + 1):
 			yearly = self.get_cooptimus_games_data({"releaseyear": year})
-			print(f"Year: {year}, Games found: {len(yearly)}")
+			dprint(f"Year: {year}, Games found: {len(yearly)}")
 			if len(yearly) == 40:
-				print("Found more than 40 games, scraping by month...")
+				dprint("Found more than 40 games, scraping by month...")
 				yearly.extend(self.fetch_all_coop_games_for_year(year))
 			
-			print(f"Total games for {year}: {len(yearly)}")
+			dprint(f"Total games for {year}: {len(yearly)}")
 			all_games.extend(yearly)
 
-		print(f"Found {len(all_games)} games")
+		dprint(f"Found {len(all_games)} games")
 		return all_games
 	
 	def fetch_all_coop_games_for_year(self, year):
 		yearly = []
 		for month in range(1, 13):
 			monthly = self.get_cooptimus_games_data({"releaseyear": year, "releasemonth": month})
-			print(f"Year: {year}, Month: {month}, Games found: {len(monthly)}")
+			dprint(f"Year: {year}, Month: {month}, Games found: {len(monthly)}")
 			yearly.extend(monthly)
 		return yearly
 	
@@ -129,7 +130,7 @@ class Scraper:
 			if not game_response["success"]:
 				raise Exception("Removed game")
 		except:
-			print(f"{game.title} ({game.steam_id}), no data found")
+			dprint(f"{game.title} ({game.steam_id}), no data found")
 			game.is_removed = True
 			return
 
@@ -171,7 +172,7 @@ class Scraper:
 		steam_ids = await self.database.get_all_steam_ids()
 		batch_size = 200
 
-		print(f"Fetching country data (prices, delistings) for {len(steam_ids)} games")
+		dprint(f"Fetching country data (prices, delistings) for {len(steam_ids)} games")
 		for i in range(0, len(steam_ids), batch_size):
 			self.scraping_state = f"Getting prices ({i}/{len(steam_ids)})"
 			batch = steam_ids[i:i+batch_size]
@@ -196,7 +197,7 @@ class Scraper:
 					
 					# TODO remove, never happens
 					if "data" not in game_response:
-						print(f"!!!!! No data field for steam id {steam_id} in {country.code}")
+						dprint(f"!!!!! No data field for steam id {steam_id} in {country.code}")
 						continue
 
 					data = game_response["data"]
@@ -219,7 +220,7 @@ class Scraper:
 				response.raise_for_status()
 				return response
 			except requests.RequestException as e:
-				print(f"Request failed ({attempt + 1}/{retries}): {e}")
+				dprint(f"Request failed ({attempt + 1}/{retries}): {e}")
 				time.sleep(self.steam_delay ** attempt)
 		raise Exception(f"Failed to fetch {url} after {retries} attempts")
 
