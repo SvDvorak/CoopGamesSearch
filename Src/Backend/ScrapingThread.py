@@ -2,6 +2,7 @@ import asyncio
 import threading
 import time
 from Scraper import Scraper
+from dprint import dprint
 
 class ScrapingThread:
 	def __init__(self, scraper: Scraper, scrape_interval_hours: int):
@@ -25,26 +26,40 @@ class ScrapingThread:
 		return (time.time() - self.last_scrape_time) / 3600 # Convert to hours
 
 	def scrape_games_background(self):
+		any_error = False
+		new_games_count = 0
+		total_games_count = 0
+
+		self.scraping_in_progress = True
+		dprint("\n=== Starting background scraping ===")
+
 		try:
-			self.scraping_in_progress = True
-			print("\n=== Starting background scraping ===")
-			
-			# Run the scraping (this takes hours)
+			# Scrape games & game meta data
 			last_scrape = None if self.has_done_full_scrape == False else self.last_scrape_time
 			total_games_count, new_games_count = asyncio.run(self.scraper.scrape_games(last_scrape))
+		except Exception as e:
+			any_error = True
+			dprint(f"\nError scraping games: {e}")
+
+		try:
+			# Scrape game prices
 			asyncio.run(self.scraper.scrape_country_data())
-			
+		except Exception as e:
+			any_error = True
+			dprint(f"\nError scraping prices: {e}")
+
+		self.scraping_in_progress = False
+		self.scraper.scraping_state = "None"
+
+		if(any_error is False):
+			dprint(f"\n=== Background scraping completed successfully. Found {new_games_count} new games. New total is {total_games_count} ===\n")
 			self.last_scrape_time = time.time()
 			self.has_done_full_scrape = True
-			print(f"\n=== Background scraping completed. Found {new_games_count} new games. New total is {total_games_count} ===\n")
-		except Exception as e:
-			raise e
-		finally:
-			self.scraping_in_progress = False
-			self.scraper.scraping_state = "None"
+		else:
+			raise Exception(f"\n=== Background scraping failed partially or fully. See errors above. ===\n")
 
 	def continuous_scraping_thread(self):
-		print(f"\n=== Starting continuous scraping thread (every {self.scrape_interval_hours} hours) ===\n")
+		dprint(f"\n=== Starting continuous scraping thread (every {self.scrape_interval_hours} hours) ===\n")
 
 		while True:
 			try:
@@ -55,8 +70,7 @@ class ScrapingThread:
 				time.sleep(600)
 				
 			except Exception as e:
-				print(f"\nError in continuous scraping thread: {e}")
-				time.sleep(300)  # 5 minutes
+				time.sleep(3600) # An hour. Lets back off quite a bit to let their servers relax
 	
 	def start_continuous_scraping(self):
 		if self.continuous_thread is None or not self.continuous_thread.is_alive():
@@ -67,7 +81,7 @@ class ScrapingThread:
 		if self.scraping_in_progress:
 			return False, "Scraping is already in progress"
 		
-		print("\nManual scraping triggered\n")
+		dprint("\nManual scraping triggered\n")
 		scraping_thread = threading.Thread(target=self.scrape_games_background, daemon=True)
 		scraping_thread.start()
 		return True, "Scraping started"
