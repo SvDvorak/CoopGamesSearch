@@ -27,8 +27,6 @@ class ScrapingThread:
 
 	def scrape_games_background(self):
 		any_error = False
-		new_games_count = 0
-		total_games_count = 0
 
 		self.scraping_in_progress = True
 		dprint("\n=== Starting background scraping ===")
@@ -37,22 +35,22 @@ class ScrapingThread:
 			# Scrape games & game meta data
 			last_scrape = None if self.has_done_full_scrape == False else self.last_scrape_time
 			total_games_count, new_games_count = asyncio.run(self.scraper.scrape_games(last_scrape))
+			dprint(f"\n=== Game scraping completed successfully. Found {new_games_count} new games. New total is {total_games_count} ===\n")
 		except Exception as e:
 			any_error = True
-			dprint(f"\nError scraping games: {e}")
+			dprint(f"\n=== Error scraping games ===\n{e}")
 
 		try:
 			# Scrape game prices
 			asyncio.run(self.scraper.scrape_country_data())
 		except Exception as e:
 			any_error = True
-			dprint(f"\nError scraping prices: {e}")
+			dprint(f"\n=== Error scraping prices ===\n{e}")
 
 		self.scraping_in_progress = False
 		self.scraper.scraping_state = "None"
 
 		if(any_error is False):
-			dprint(f"\n=== Background scraping completed successfully. Found {new_games_count} new games. New total is {total_games_count} ===\n")
 			self.last_scrape_time = time.time()
 			self.has_done_full_scrape = True
 		else:
@@ -82,6 +80,10 @@ class ScrapingThread:
 			return False, "Scraping is already in progress"
 		
 		dprint("\nManual scraping triggered\n")
-		scraping_thread = threading.Thread(target=self.scrape_games_background, daemon=True)
-		scraping_thread.start()
+		try:
+			scraping_thread = threading.Thread(target=self.scrape_games_background, daemon=True)
+			scraping_thread.start()
+		except Exception as e:
+			dprint("Failed manual scrape")
+
 		return True, "Scraping started"
